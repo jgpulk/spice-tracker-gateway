@@ -1,0 +1,4 @@
+export enum SaleType {
+  DIRECT_RAW = 'DIRECT_RAW',
+  PROCESSED_GRADE = 'PROCESSED_GRADE',
+}
