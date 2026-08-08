@@ -1,4 +1,11 @@
-import { Column, CreateDateColumn, Entity, OneToMany, OneToOne, PrimaryGeneratedColumn, UpdateDateColumn } from 'typeorm';
+import {
+  Column,
+  CreateDateColumn,
+  Entity,
+  OneToMany,
+  PrimaryGeneratedColumn,
+  UpdateDateColumn,
+} from 'typeorm';
 import { VendorSubscription } from './vendor-subscription.entity';
 import { User } from '../../users/entities/user.entity';
 import { Farmer } from '../../farmers/entities/farmer.entity';
@@ -12,6 +19,12 @@ export enum VendorStatus {
   ACTIVE = 'ACTIVE',
   SUSPENDED = 'SUSPENDED',
   TRIAL = 'TRIAL',
+}
+
+export enum OnboardingSource {
+  SUPER_ADMIN = 'SUPER_ADMIN',
+  SELF = 'SELF',
+  REFERRAL = 'REFERRAL',
 }
 
 @Entity('vendors')
@@ -28,14 +41,23 @@ export class Vendor {
   @Column({ type: 'enum', enum: VendorStatus, default: VendorStatus.TRIAL })
   status: VendorStatus;
 
+  @Column({ type: 'enum', enum: OnboardingSource, default: OnboardingSource.SUPER_ADMIN })
+  onboarding_source: OnboardingSource;
+
+  @Column({ type: 'int', nullable: true })
+  onboarded_by_user_id: number | null;
+
+  @Column({ type: 'int', nullable: true })
+  referred_by_vendor_id: number | null;
+
   @CreateDateColumn()
   created_at: Date;
 
   @UpdateDateColumn()
   updated_at: Date;
 
-  @OneToOne(() => VendorSubscription, (sub) => sub.vendor)
-  subscription: VendorSubscription;
+  @OneToMany(() => VendorSubscription, (sub) => sub.vendor)
+  subscriptions: VendorSubscription[];
 
   @OneToMany(() => User, (user) => user.vendor)
   users: User[];

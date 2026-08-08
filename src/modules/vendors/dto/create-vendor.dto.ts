@@ -1,6 +1,6 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsEnum, IsString, MaxLength } from 'class-validator';
-import { VendorStatus } from '../entities/vendor.entity';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsEnum, IsInt, IsOptional, IsPositive, IsString, MaxLength } from 'class-validator';
+import { OnboardingSource } from '../entities/vendor.entity';
 
 export class CreateVendorDto {
   @ApiProperty({ example: 'Green Cardamom Shop' })
@@ -13,7 +13,21 @@ export class CreateVendorDto {
   @MaxLength(100)
   subdomain: string;
 
-  @ApiProperty({ enum: VendorStatus, default: VendorStatus.TRIAL })
-  @IsEnum(VendorStatus)
-  status: VendorStatus;
+  @ApiPropertyOptional({
+    enum: OnboardingSource,
+    default: OnboardingSource.SUPER_ADMIN,
+    description: 'Set automatically by the server; provide only when needed',
+  })
+  @IsEnum(OnboardingSource)
+  @IsOptional()
+  onboarding_source?: OnboardingSource;
+
+  @ApiPropertyOptional({
+    example: 3,
+    description: 'vendor_id of the referring vendor (only for REFERRAL source)',
+  })
+  @IsInt()
+  @IsPositive()
+  @IsOptional()
+  referred_by_vendor_id?: number;
 }

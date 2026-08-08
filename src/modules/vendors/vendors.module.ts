@@ -4,9 +4,13 @@ import { VendorsController } from './vendors.controller';
 import { VendorsService } from './vendors.service';
 import { Vendor } from './entities/vendor.entity';
 import { VendorSubscription } from './entities/vendor-subscription.entity';
+import { SubscriptionPlansModule } from '../subscription-plans/subscription-plans.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Vendor, VendorSubscription])],
+  imports: [
+    TypeOrmModule.forFeature([Vendor, VendorSubscription]),
+    SubscriptionPlansModule,
+  ],
   controllers: [VendorsController],
   providers: [VendorsService],
   exports: [VendorsService],

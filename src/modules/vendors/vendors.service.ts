@@ -1,33 +1,125 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { Vendor } from './entities/vendor.entity';
+import { LessThan, Repository } from 'typeorm';
+import { Cron, CronExpression } from '@nestjs/schedule';
+import { Vendor, OnboardingSource, VendorStatus } from './entities/vendor.entity';
+import { SubscriptionStatus, VendorSubscription } from './entities/vendor-subscription.entity';
+import { SubscriptionPlansService } from '../subscription-plans/subscription-plans.service';
+import { CreateVendorDto } from './dto/create-vendor.dto';
 
 @Injectable()
 export class VendorsService {
   constructor(
     @InjectRepository(Vendor)
     private readonly vendorRepo: Repository<Vendor>,
+    @InjectRepository(VendorSubscription)
+    private readonly subscriptionRepo: Repository<VendorSubscription>,
+    private readonly plansService: SubscriptionPlansService,
   ) {}
 
   findAll() {
-    return this.vendorRepo.find();
+    return this.vendorRepo.find({
+      relations: ['subscriptions', 'subscriptions.plan'],
+      order: { created_at: 'DESC' },
+    });
   }
 
   async findOne(id: number) {
-    const vendor = await this.vendorRepo.findOneBy({ id_vendor: id });
+    const vendor = await this.vendorRepo.findOne({
+      where: { id_vendor: id },
+      relations: ['subscriptions', 'subscriptions.plan'],
+    });
     if (!vendor) throw new NotFoundException('Vendor not found');
     return vendor;
   }
 
-  create(data: Partial<Vendor>) {
-    const vendor = this.vendorRepo.create(data);
-    return this.vendorRepo.save(vendor);
+  async create(dto: CreateVendorDto, onboardedByUserId: number) {
+    const vendor = this.vendorRepo.create({
+      name: dto.name,
+      subdomain: dto.subdomain,
+      status: VendorStatus.TRIAL,
+      onboarding_source: dto.onboarding_source ?? OnboardingSource.SUPER_ADMIN,
+      onboarded_by_user_id:
+        (dto.onboarding_source ?? OnboardingSource.SUPER_ADMIN) === OnboardingSource.SUPER_ADMIN
+          ? onboardedByUserId
+          : null,
+      referred_by_vendor_id: dto.referred_by_vendor_id ?? null,
+    });
+
+    const saved = await this.vendorRepo.save(vendor);
+
+    const today = new Date();
+    const trialEnd = new Date(today);
+    trialEnd.setDate(trialEnd.getDate() + 30);
+
+    await this.subscriptionRepo.save(
+      this.subscriptionRepo.create({
+        vendor_id: saved.id_vendor,
+        plan_id: null,
+        status: SubscriptionStatus.ACTIVE,
+        start_date: today,
+        end_date: trialEnd,
+      }),
+    );
+
+    return this.findOne(saved.id_vendor);
   }
 
   async update(id: number, data: Partial<Vendor>) {
     await this.findOne(id);
     await this.vendorRepo.update(id, data);
     return this.findOne(id);
+  }
+
+  async activateVendor(id: number, planId: number) {
+    await this.findOne(id);
+    await this.plansService.findOne(planId); // validates plan exists
+
+    // Expire any currently active subscription
+    await this.subscriptionRepo.update(
+      { vendor_id: id, status: SubscriptionStatus.ACTIVE },
+      { status: SubscriptionStatus.EXPIRED },
+    );
+
+    // Insert new paid subscription (no end_date = ongoing)
+    const today = new Date();
+    await this.subscriptionRepo.save(
+      this.subscriptionRepo.create({
+        vendor_id: id,
+        plan_id: planId,
+        status: SubscriptionStatus.ACTIVE,
+        start_date: today,
+        end_date: null,
+      }),
+    );
+
+    await this.vendorRepo.update(id, { status: VendorStatus.ACTIVE });
+    return this.findOne(id);
+  }
+
+  @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT)
+  async expireTrials() {
+    const today = new Date();
+
+    const expiredSubs = await this.subscriptionRepo.find({
+      where: { end_date: LessThan(today), status: SubscriptionStatus.ACTIVE },
+      relations: ['vendor'],
+    });
+
+    const trialVendorIds = expiredSubs
+      .filter((sub) => sub.vendor?.status === VendorStatus.TRIAL)
+      .map((sub) => sub.vendor_id);
+
+    if (trialVendorIds.length === 0) return;
+
+    for (const vendorId of trialVendorIds) {
+      await this.subscriptionRepo.update(
+        { vendor_id: vendorId, status: SubscriptionStatus.ACTIVE },
+        { status: SubscriptionStatus.EXPIRED },
+      );
+      await this.vendorRepo.update(vendorId, { status: VendorStatus.SUSPENDED });
+    }
+
+    console.log(`[TrialExpiry] Suspended ${trialVendorIds.length} vendor(s) with expired trials.`);
   }
 }
