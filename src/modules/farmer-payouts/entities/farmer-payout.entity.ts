@@ -1,0 +1,48 @@
+import { Column, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
+import { Vendor } from '../../vendors/entities/vendor.entity';
+import { Farmer } from '../../farmers/entities/farmer.entity';
+import { StockBatch } from '../../stock-batches/entities/stock-batch.entity';
+
+export enum PayoutStatus {
+  PENDING = 'PENDING',
+  PAID = 'PAID',
+}
+
+@Entity('farmer_payouts')
+export class FarmerPayout {
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
+
+  @Column('uuid')
+  vendor_id: string;
+
+  @Column('uuid')
+  farmer_id: string;
+
+  @Column('uuid')
+  batch_id: string;
+
+  @Column({ type: 'decimal', precision: 12, scale: 2 })
+  amount: number;
+
+  @Column({ type: 'enum', enum: PayoutStatus, default: PayoutStatus.PENDING })
+  status: PayoutStatus;
+
+  @Column({ type: 'date', nullable: true })
+  due_date: Date;
+
+  @Column({ type: 'timestamp', nullable: true })
+  paid_at: Date;
+
+  @ManyToOne(() => Vendor, (vendor) => vendor.farmer_payouts)
+  @JoinColumn({ name: 'vendor_id' })
+  vendor: Vendor;
+
+  @ManyToOne(() => Farmer, (farmer) => farmer.payouts)
+  @JoinColumn({ name: 'farmer_id' })
+  farmer: Farmer;
+
+  @ManyToOne(() => StockBatch, (batch) => batch.payouts)
+  @JoinColumn({ name: 'batch_id' })
+  batch: StockBatch;
+}
