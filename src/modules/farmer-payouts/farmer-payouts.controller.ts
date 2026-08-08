@@ -6,6 +6,7 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { Role } from '../../common/enums/role.enum';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { ResponseMessage } from '../../common/decorators/response-message.decorator';
 import { CreateFarmerPayoutDto } from './dto/create-farmer-payout.dto';
 
 @ApiTags('Farmer Payouts')
@@ -17,18 +18,21 @@ export class FarmerPayoutsController {
   constructor(private readonly farmerPayoutsService: FarmerPayoutsService) {}
 
   @Get()
+  @ResponseMessage('Farmer payouts fetched successfully')
   @ApiOperation({ summary: 'List all farmer payouts for this vendor' })
   findAll(@CurrentUser() user: any) {
     return this.farmerPayoutsService.findAllByVendor(user.vendor_id);
   }
 
   @Post()
+  @ResponseMessage('Farmer payout created successfully')
   @ApiOperation({ summary: 'Create a payout record for a farmer batch' })
   create(@Body() body: CreateFarmerPayoutDto, @CurrentUser() user: any) {
     return this.farmerPayoutsService.create({ ...body, vendor_id: user.vendor_id });
   }
 
   @Patch(':id/pay')
+  @ResponseMessage('Payout marked as paid')
   @ApiOperation({ summary: 'Mark a payout as PAID' })
   markPaid(@Param('id') id: string, @CurrentUser() user: any) {
     return this.farmerPayoutsService.markPaid(id, user.vendor_id);
