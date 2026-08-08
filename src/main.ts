@@ -1,5 +1,6 @@
 import { NestFactory, Reflector } from '@nestjs/core';
 import { ValidationPipe, ClassSerializerInterceptor } from '@nestjs/common';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
@@ -18,8 +19,18 @@ async function bootstrap() {
     credentials: true,
   });
 
+  const swaggerConfig = new DocumentBuilder()
+    .setTitle('Spice Wallet API')
+    .setDescription('Multi-tenant cardamom processing & trade SaaS — vendor, stock, drying, grading, and sales management')
+    .setVersion('1.0')
+    .addBearerAuth()
+    .build();
+  const document = SwaggerModule.createDocument(app, swaggerConfig);
+  SwaggerModule.setup('api/docs', app, document);
+
   const port = process.env.PORT || 3000;
   await app.listen(port);
-  console.log(`Spice Wallet API → http://localhost:${port}/api/v1`);
+  console.log(`Spice Wallet API  → http://localhost:${port}/api/v1`);
+  console.log(`Swagger UI        → http://localhost:${port}/api/docs`);
 }
 bootstrap();
