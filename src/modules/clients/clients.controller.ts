@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Patch, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Patch, UseGuards, ParseIntPipe } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ClientsService } from './clients.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -29,13 +29,13 @@ export class ClientsController {
 
   @Get(':id')
   @ApiOperation({ summary: 'Get a client by ID' })
-  findOne(@Param('id') id: string) {
+  findOne(@Param('id', ParseIntPipe) id: number) {
     return this.clientsService.findOne(id);
   }
 
   @Patch(':id')
   @ApiOperation({ summary: 'Update a client' })
-  update(@Param('id') id: string, @Body() body: CreateClientDto) {
+  update(@Param('id', ParseIntPipe) id: number, @Body() body: CreateClientDto) {
     return this.clientsService.update(id, body);
   }
 }

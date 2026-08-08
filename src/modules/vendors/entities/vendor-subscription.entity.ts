@@ -1,4 +1,4 @@
-import { Column, Entity, JoinColumn, OneToOne, PrimaryGeneratedColumn } from 'typeorm';
+import { Column, CreateDateColumn, Entity, JoinColumn, OneToOne, PrimaryGeneratedColumn, UpdateDateColumn } from 'typeorm';
 import { Vendor } from './vendor.entity';
 
 export enum PlanType {
@@ -15,11 +15,11 @@ export enum SubscriptionStatus {
 
 @Entity('vendor_subscriptions')
 export class VendorSubscription {
-  @PrimaryGeneratedColumn('uuid')
-  id: string;
+  @PrimaryGeneratedColumn()
+  id_vendor_subscription: number;
 
-  @Column('uuid')
-  vendor_id: string;
+  @Column()
+  vendor_id: number;
 
   @Column({ type: 'enum', enum: PlanType, default: PlanType.STARTER })
   plan_type: PlanType;
@@ -35,6 +35,12 @@ export class VendorSubscription {
 
   @Column({ type: 'date', nullable: true })
   end_date: Date;
+
+  @CreateDateColumn()
+  created_at: Date;
+
+  @UpdateDateColumn()
+  updated_at: Date;
 
   @OneToOne(() => Vendor, (vendor) => vendor.subscription)
   @JoinColumn({ name: 'vendor_id' })

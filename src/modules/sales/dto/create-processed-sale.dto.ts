@@ -1,11 +1,11 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsArray, IsNumber, IsOptional, IsPositive, IsString, IsUUID, ValidateNested } from 'class-validator';
+import { IsArray, IsInt, IsNumber, IsOptional, IsPositive, IsString, ValidateNested } from 'class-validator';
 
 export class SaleStockItemDto {
-  @ApiProperty({ example: 'uuid-of-graded-stock' })
-  @IsUUID()
-  graded_stock_id: string;
+  @ApiProperty({ example: 1, description: 'ID of the graded stock item' })
+  @IsInt()
+  graded_stock_id: number;
 
   @ApiProperty({ example: 20.0 })
   @IsNumber()
@@ -19,9 +19,9 @@ export class SaleStockItemDto {
 }
 
 export class CreateProcessedSaleDto {
-  @ApiProperty({ example: 'uuid-of-client' })
-  @IsUUID()
-  client_id: string;
+  @ApiProperty({ example: 1, description: 'ID of the client' })
+  @IsInt()
+  client_id: number;
 
   @ApiProperty({ type: [SaleStockItemDto] })
   @IsArray()

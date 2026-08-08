@@ -19,12 +19,12 @@ export class SalesService {
     @InjectRepository(GradedStock) private readonly gradedStockRepo: Repository<GradedStock>,
   ) {}
 
-  findAllByVendor(vendor_id: string) {
+  findAllByVendor(vendor_id: number) {
     return this.saleRepo.find({ where: { vendor_id }, relations: ['client'] });
   }
 
-  async createDirectRawSale(vendor_id: string, client_id: string, batch_ids: string[], notes?: string) {
-    const batches = await this.batchRepo.findBy({ id: In(batch_ids), vendor_id, status: BatchStatus.RECEIVED });
+  async createDirectRawSale(vendor_id: number, client_id: number, batch_ids: number[], notes?: string) {
+    const batches = await this.batchRepo.findBy({ id_stock_batch: In(batch_ids), vendor_id, status: BatchStatus.RECEIVED });
     const total_weight_kg = batches.reduce((sum, b) => sum + Number(b.raw_weight_kg), 0);
     const total_amount = batches.reduce((sum, b) => sum + Number(b.raw_weight_kg) * Number(b.price_per_kg), 0);
 
@@ -32,14 +32,14 @@ export class SalesService {
       this.saleRepo.create({ vendor_id, client_id, sale_type: SaleType.DIRECT_RAW, total_weight_kg, total_amount, notes }),
     );
     await this.saleBatchRepo.save(batches.map((b) => this.saleBatchRepo.create({ sale, batch: b })));
-    await this.batchRepo.update({ id: In(batch_ids) }, { status: BatchStatus.SOLD_RAW });
+    await this.batchRepo.update({ id_stock_batch: In(batch_ids) }, { status: BatchStatus.SOLD_RAW });
     return sale;
   }
 
   async createProcessedSale(
-    vendor_id: string,
-    client_id: string,
-    items: { graded_stock_id: string; weight_kg: number; price_per_kg: number }[],
+    vendor_id: number,
+    client_id: number,
+    items: { graded_stock_id: number; weight_kg: number; price_per_kg: number }[],
     notes?: string,
   ) {
     const total_weight_kg = items.reduce((sum, i) => sum + i.weight_kg, 0);
@@ -52,7 +52,7 @@ export class SalesService {
       items.map((i) =>
         this.saleStockItemRepo.create({
           sale,
-          graded_stock: { id: i.graded_stock_id } as GradedStock,
+          graded_stock: { id_graded_stock: i.graded_stock_id } as unknown as GradedStock,
           weight_kg: i.weight_kg,
           price_per_kg: i.price_per_kg,
           line_amount: i.weight_kg * i.price_per_kg,

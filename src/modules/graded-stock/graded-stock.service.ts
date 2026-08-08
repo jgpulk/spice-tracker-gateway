@@ -10,12 +10,12 @@ export class GradedStockService {
     private readonly gradedStockRepo: Repository<GradedStock>,
   ) {}
 
-  findAllByVendor(vendor_id: string) {
+  findAllByVendor(vendor_id: number) {
     return this.gradedStockRepo.find({ where: { vendor_id }, relations: ['drying_lot'] });
   }
 
-  async findOne(id: string, vendor_id: string) {
-    const stock = await this.gradedStockRepo.findOneBy({ id, vendor_id });
+  async findOne(id: number, vendor_id: number) {
+    const stock = await this.gradedStockRepo.findOneBy({ id_graded_stock: id, vendor_id });
     if (!stock) throw new NotFoundException('Graded stock not found');
     return stock;
   }

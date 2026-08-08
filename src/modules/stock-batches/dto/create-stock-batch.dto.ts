@@ -1,10 +1,10 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsNumber, IsOptional, IsPositive, IsString, IsUUID } from 'class-validator';
+import { IsInt, IsNumber, IsOptional, IsPositive, IsString } from 'class-validator';
 
 export class CreateStockBatchDto {
-  @ApiProperty({ example: 'uuid-of-farmer' })
-  @IsUUID()
-  farmer_id: string;
+  @ApiProperty({ example: 1, description: 'ID of the farmer' })
+  @IsInt()
+  farmer_id: number;
 
   @ApiProperty({ example: 120.5, description: 'Raw weight in kg' })
   @IsNumber()

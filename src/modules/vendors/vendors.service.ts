@@ -14,8 +14,8 @@ export class VendorsService {
     return this.vendorRepo.find();
   }
 
-  async findOne(id: string) {
-    const vendor = await this.vendorRepo.findOneBy({ id });
+  async findOne(id: number) {
+    const vendor = await this.vendorRepo.findOneBy({ id_vendor: id });
     if (!vendor) throw new NotFoundException('Vendor not found');
     return vendor;
   }
@@ -25,7 +25,7 @@ export class VendorsService {
     return this.vendorRepo.save(vendor);
   }
 
-  async update(id: string, data: Partial<Vendor>) {
+  async update(id: number, data: Partial<Vendor>) {
     await this.findOne(id);
     await this.vendorRepo.update(id, data);
     return this.findOne(id);

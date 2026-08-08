@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Patch, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Patch, UseGuards, ParseIntPipe } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { VendorsService } from './vendors.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -31,14 +31,14 @@ export class VendorsController {
   @Roles(Role.SUPER_ADMIN)
   @Get(':id')
   @ApiOperation({ summary: 'Get a vendor shop by ID' })
-  findOne(@Param('id') id: string) {
+  findOne(@Param('id', ParseIntPipe) id: number) {
     return this.vendorsService.findOne(id);
   }
 
   @Roles(Role.SUPER_ADMIN)
   @Patch(':id')
   @ApiOperation({ summary: 'Update a vendor shop' })
-  update(@Param('id') id: string, @Body() body: CreateVendorDto) {
+  update(@Param('id', ParseIntPipe) id: number, @Body() body: CreateVendorDto) {
     return this.vendorsService.update(id, body);
   }
 }

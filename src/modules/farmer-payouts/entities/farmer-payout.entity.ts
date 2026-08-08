@@ -1,4 +1,4 @@
-import { Column, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
+import { Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn, UpdateDateColumn } from 'typeorm';
 import { Vendor } from '../../vendors/entities/vendor.entity';
 import { Farmer } from '../../farmers/entities/farmer.entity';
 import { StockBatch } from '../../stock-batches/entities/stock-batch.entity';
@@ -10,17 +10,17 @@ export enum PayoutStatus {
 
 @Entity('farmer_payouts')
 export class FarmerPayout {
-  @PrimaryGeneratedColumn('uuid')
-  id: string;
+  @PrimaryGeneratedColumn()
+  id_farmer_payout: number;
 
-  @Column('uuid')
-  vendor_id: string;
+  @Column()
+  vendor_id: number;
 
-  @Column('uuid')
-  farmer_id: string;
+  @Column()
+  farmer_id: number;
 
-  @Column('uuid')
-  batch_id: string;
+  @Column()
+  batch_id: number;
 
   @Column({ type: 'decimal', precision: 12, scale: 2 })
   amount: number;
@@ -33,6 +33,12 @@ export class FarmerPayout {
 
   @Column({ type: 'timestamp', nullable: true })
   paid_at: Date;
+
+  @CreateDateColumn()
+  created_at: Date;
+
+  @UpdateDateColumn()
+  updated_at: Date;
 
   @ManyToOne(() => Vendor, (vendor) => vendor.farmer_payouts)
   @JoinColumn({ name: 'vendor_id' })

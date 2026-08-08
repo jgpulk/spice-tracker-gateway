@@ -1,4 +1,13 @@
-import { Column, Entity, JoinColumn, ManyToOne, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
+import {
+  Column,
+  CreateDateColumn,
+  Entity,
+  JoinColumn,
+  ManyToOne,
+  OneToMany,
+  PrimaryGeneratedColumn,
+  UpdateDateColumn,
+} from 'typeorm';
 import { Vendor } from '../../vendors/entities/vendor.entity';
 import { StockBatch } from '../../stock-batches/entities/stock-batch.entity';
 import { GradedStock } from '../../graded-stock/entities/graded-stock.entity';
@@ -10,16 +19,20 @@ export enum DryingLotStatus {
 
 @Entity('drying_lots')
 export class DryingLot {
-  @PrimaryGeneratedColumn('uuid')
-  id: string;
+  @PrimaryGeneratedColumn()
+  id_drying_lot: number;
 
-  @Column('uuid')
-  vendor_id: string;
+  @Column()
+  vendor_id: number;
 
   @Column({ length: 100 })
   lot_name: string;
 
-  @Column({ type: 'enum', enum: DryingLotStatus, default: DryingLotStatus.ACTIVE })
+  @Column({
+    type: 'enum',
+    enum: DryingLotStatus,
+    default: DryingLotStatus.ACTIVE,
+  })
   status: DryingLotStatus;
 
   @Column({ type: 'decimal', precision: 10, scale: 3, default: 0 })
@@ -36,6 +49,12 @@ export class DryingLot {
 
   @Column({ type: 'timestamp', nullable: true })
   completed_at: Date;
+
+  @CreateDateColumn()
+  created_at: Date;
+
+  @UpdateDateColumn()
+  updated_at: Date;
 
   @ManyToOne(() => Vendor, (vendor) => vendor.drying_lots)
   @JoinColumn({ name: 'vendor_id' })

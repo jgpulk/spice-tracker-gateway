@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEnum, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
+import { IsEnum, IsInt, IsOptional, IsString, MaxLength } from 'class-validator';
 import { ClientType } from '../../../common/enums/client-type.enum';
 
 export class CreateClientDto {
@@ -31,8 +31,8 @@ export class CreateClientDto {
   @IsEnum(ClientType)
   type: ClientType;
 
-  @ApiPropertyOptional({ description: 'Only when type is VENDOR' })
+  @ApiPropertyOptional({ example: 1, description: 'Only when type is VENDOR — ID of the vendor' })
   @IsOptional()
-  @IsUUID()
-  ref_vendor_id?: string;
+  @IsInt()
+  ref_vendor_id?: number;
 }

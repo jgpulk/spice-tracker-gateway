@@ -1,4 +1,4 @@
-import { Column, CreateDateColumn, Entity, OneToMany, OneToOne, PrimaryGeneratedColumn } from 'typeorm';
+import { Column, CreateDateColumn, Entity, OneToMany, OneToOne, PrimaryGeneratedColumn, UpdateDateColumn } from 'typeorm';
 import { VendorSubscription } from './vendor-subscription.entity';
 import { User } from '../../users/entities/user.entity';
 import { Farmer } from '../../farmers/entities/farmer.entity';
@@ -16,8 +16,8 @@ export enum VendorStatus {
 
 @Entity('vendors')
 export class Vendor {
-  @PrimaryGeneratedColumn('uuid')
-  id: string;
+  @PrimaryGeneratedColumn()
+  id_vendor: number;
 
   @Column({ length: 255 })
   name: string;
@@ -30,6 +30,9 @@ export class Vendor {
 
   @CreateDateColumn()
   created_at: Date;
+
+  @UpdateDateColumn()
+  updated_at: Date;
 
   @OneToOne(() => VendorSubscription, (sub) => sub.vendor)
   subscription: VendorSubscription;

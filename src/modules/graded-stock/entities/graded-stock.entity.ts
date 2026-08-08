@@ -1,4 +1,4 @@
-import { Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
+import { Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, OneToMany, PrimaryGeneratedColumn, UpdateDateColumn } from 'typeorm';
 import { Grade } from '../../../common/enums/grade.enum';
 import { Vendor } from '../../vendors/entities/vendor.entity';
 import { DryingLot } from '../../drying-lots/entities/drying-lot.entity';
@@ -6,14 +6,14 @@ import { SaleStockItem } from '../../sales/entities/sale-stock-item.entity';
 
 @Entity('graded_stock')
 export class GradedStock {
-  @PrimaryGeneratedColumn('uuid')
-  id: string;
+  @PrimaryGeneratedColumn()
+  id_graded_stock: number;
 
-  @Column('uuid')
-  vendor_id: string;
+  @Column()
+  vendor_id: number;
 
-  @Column('uuid')
-  drying_lot_id: string;
+  @Column()
+  drying_lot_id: number;
 
   @Column({ type: 'enum', enum: Grade })
   grade: Grade;
@@ -26,6 +26,9 @@ export class GradedStock {
 
   @CreateDateColumn()
   created_at: Date;
+
+  @UpdateDateColumn()
+  updated_at: Date;
 
   @ManyToOne(() => Vendor, (vendor) => vendor.graded_stocks)
   @JoinColumn({ name: 'vendor_id' })

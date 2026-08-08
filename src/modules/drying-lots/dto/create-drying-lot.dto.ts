@@ -1,13 +1,13 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsArray, IsString, IsUUID } from 'class-validator';
+import { IsArray, IsInt, IsString } from 'class-validator';
 
 export class CreateDryingLotDto {
   @ApiProperty({ example: 'LOT-2024-01' })
   @IsString()
   lot_name: string;
 
-  @ApiProperty({ example: ['uuid-batch-1', 'uuid-batch-2'], type: [String] })
+  @ApiProperty({ example: [1, 2], type: [Number] })
   @IsArray()
-  @IsUUID('all', { each: true })
-  batch_ids: string[];
+  @IsInt({ each: true })
+  batch_ids: number[];
 }

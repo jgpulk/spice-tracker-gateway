@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, UseGuards, ParseIntPipe } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { GradedStockService } from './graded-stock.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -30,7 +30,7 @@ export class GradedStockController {
 
   @Get(':id')
   @ApiOperation({ summary: 'Get a graded stock entry by ID' })
-  findOne(@Param('id') id: string, @CurrentUser() user: any) {
+  findOne(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: any) {
     return this.gradedStockService.findOne(id, user.vendor_id);
   }
 }

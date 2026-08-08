@@ -1,12 +1,12 @@
-import { Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
+import { Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, OneToMany, PrimaryGeneratedColumn, UpdateDateColumn } from 'typeorm';
 import { ClientType } from '../../../common/enums/client-type.enum';
 import { Sale } from '../../sales/entities/sale.entity';
 import { Vendor } from '../../vendors/entities/vendor.entity';
 
 @Entity('clients')
 export class Client {
-  @PrimaryGeneratedColumn('uuid')
-  id: string;
+  @PrimaryGeneratedColumn()
+  id_client: number;
 
   @Column({ length: 255 })
   name: string;
@@ -26,11 +26,14 @@ export class Client {
   @Column({ type: 'enum', enum: ClientType, default: ClientType.INDIVIDUAL })
   type: ClientType;
 
-  @Column('uuid', { nullable: true })
-  ref_vendor_id: string;
+  @Column({ nullable: true })
+  ref_vendor_id: number;
 
   @CreateDateColumn()
   created_at: Date;
+
+  @UpdateDateColumn()
+  updated_at: Date;
 
   @ManyToOne(() => Vendor, { nullable: true })
   @JoinColumn({ name: 'ref_vendor_id' })

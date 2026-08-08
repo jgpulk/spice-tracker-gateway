@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Patch, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Patch, UseGuards, ParseIntPipe } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { FarmerPayoutsService } from './farmer-payouts.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -30,7 +30,7 @@ export class FarmerPayoutsController {
 
   @Patch(':id/pay')
   @ApiOperation({ summary: 'Mark a payout as PAID' })
-  markPaid(@Param('id') id: string, @CurrentUser() user: any) {
+  markPaid(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: any) {
     return this.farmerPayoutsService.markPaid(id, user.vendor_id);
   }
 }

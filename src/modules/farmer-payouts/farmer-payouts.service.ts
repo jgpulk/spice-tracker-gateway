@@ -10,15 +10,15 @@ export class FarmerPayoutsService {
     private readonly payoutRepo: Repository<FarmerPayout>,
   ) {}
 
-  findAllByVendor(vendor_id: string) {
+  findAllByVendor(vendor_id: number) {
     return this.payoutRepo.find({ where: { vendor_id }, relations: ['farmer', 'batch'] });
   }
 
-  async markPaid(id: string, vendor_id: string) {
-    const payout = await this.payoutRepo.findOneBy({ id, vendor_id });
+  async markPaid(id: number, vendor_id: number) {
+    const payout = await this.payoutRepo.findOneBy({ id_farmer_payout: id, vendor_id });
     if (!payout) throw new NotFoundException('Payout not found');
-    await this.payoutRepo.update(id, { status: PayoutStatus.PAID, paid_at: new Date() });
-    return this.payoutRepo.findOneBy({ id });
+    await this.payoutRepo.update({ id_farmer_payout: id }, { status: PayoutStatus.PAID, paid_at: new Date() });
+    return this.payoutRepo.findOneBy({ id_farmer_payout: id });
   }
 
   create(data: Partial<FarmerPayout>) {

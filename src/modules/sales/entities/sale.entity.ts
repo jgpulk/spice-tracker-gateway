@@ -1,4 +1,4 @@
-import { Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
+import { Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, OneToMany, PrimaryGeneratedColumn, UpdateDateColumn } from 'typeorm';
 import { SaleType } from '../../../common/enums/sale-type.enum';
 import { Vendor } from '../../vendors/entities/vendor.entity';
 import { Client } from '../../clients/entities/client.entity';
@@ -7,14 +7,14 @@ import { SaleStockItem } from './sale-stock-item.entity';
 
 @Entity('sales')
 export class Sale {
-  @PrimaryGeneratedColumn('uuid')
-  id: string;
+  @PrimaryGeneratedColumn()
+  id_sale: number;
 
-  @Column('uuid')
-  vendor_id: string;
+  @Column()
+  vendor_id: number;
 
-  @Column('uuid')
-  client_id: string;
+  @Column()
+  client_id: number;
 
   @Column({ type: 'enum', enum: SaleType })
   sale_type: SaleType;
@@ -27,6 +27,9 @@ export class Sale {
 
   @CreateDateColumn()
   sold_at: Date;
+
+  @UpdateDateColumn()
+  updated_at: Date;
 
   @Column({ type: 'text', nullable: true })
   notes: string;
