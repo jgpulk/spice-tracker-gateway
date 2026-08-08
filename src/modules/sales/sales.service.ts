@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { Sale } from './entities/sale.entity';
@@ -42,6 +42,15 @@ export class SalesService {
     items: { graded_stock_id: number; weight_kg: number; price_per_kg: number }[],
     notes?: string,
   ) {
+    const stockIds = items.map((i) => i.graded_stock_id);
+    const ownedStock = await this.gradedStockRepo.findBy({
+      id_graded_stock: In(stockIds),
+      vendor_id,
+    });
+    if (ownedStock.length !== stockIds.length) {
+      throw new NotFoundException('One or more graded stock items not found');
+    }
+
     const total_weight_kg = items.reduce((sum, i) => sum + i.weight_kg, 0);
     const total_amount = items.reduce((sum, i) => sum + i.weight_kg * i.price_per_kg, 0);
 

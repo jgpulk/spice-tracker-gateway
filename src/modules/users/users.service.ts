@@ -20,8 +20,9 @@ export class UsersService {
     return this.userRepo.findBy({ vendor_id });
   }
 
-  async findOne(id: number) {
-    const user = await this.userRepo.findOneBy({ id_user: id });
+  async findOne(id: number, vendor_id?: number) {
+    const where = vendor_id !== undefined ? { id_user: id, vendor_id } : { id_user: id };
+    const user = await this.userRepo.findOneBy(where);
     if (!user) throw new NotFoundException('User not found');
     return user;
   }
@@ -46,9 +47,9 @@ export class UsersService {
     return this.userRepo.save(user);
   }
 
-  async update(id: number, data: Partial<User>) {
-    await this.findOne(id);
+  async update(id: number, data: Partial<User>, vendor_id?: number) {
+    await this.findOne(id, vendor_id);
     await this.userRepo.update(id, data);
-    return this.findOne(id);
+    return this.findOne(id, vendor_id);
   }
 }
