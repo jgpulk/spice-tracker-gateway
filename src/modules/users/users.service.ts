@@ -1,7 +1,9 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import * as bcrypt from 'bcrypt';
 import { User } from './entities/user.entity';
+import { Role } from '../../common/enums/role.enum';
 
 @Injectable()
 export class UsersService {
@@ -26,6 +28,21 @@ export class UsersService {
 
   create(data: Partial<User>) {
     const user = this.userRepo.create(data);
+    return this.userRepo.save(user);
+  }
+
+  async createSuperAdmin(name: string, email: string, password: string) {
+    const existing = await this.userRepo.findOneBy({ email });
+    if (existing) throw new ConflictException('Email already in use');
+
+    const user = this.userRepo.create({
+      name,
+      email,
+      password_hash: await bcrypt.hash(password, 10),
+      role: Role.SUPER_ADMIN,
+      vendor_id: null,
+      is_active: true,
+    });
     return this.userRepo.save(user);
   }
 
