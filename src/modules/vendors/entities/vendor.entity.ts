@@ -32,12 +32,44 @@ export class Vendor {
   @PrimaryGeneratedColumn()
   id_vendor: number;
 
+  // --- Shop identity ---
   @Column({ length: 255 })
   name: string;
 
   @Column({ length: 100, unique: true })
   subdomain: string;
 
+  // --- Contact ---
+  @Column({ length: 255, unique: true })
+  email: string;
+
+  @Column({ length: 20, unique: true })
+  phone: string;
+
+  // --- Address ---
+  @Column({ type: 'text' })
+  address: string;
+
+  @Column({ length: 100 })
+  city: string;
+
+  @Column({ length: 100 })
+  state: string;
+
+  @Column({ length: 100, default: 'India' })
+  country: string;
+
+  @Column({ length: 20 })
+  pincode: string;
+
+  // --- Business details ---
+  @Column({ type: 'varchar', length: 255, nullable: true, unique: true })
+  business_reg_no: string | null;
+
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  business_type: string | null;
+
+  // --- Status & onboarding ---
   @Column({ type: 'enum', enum: VendorStatus, default: VendorStatus.TRIAL })
   status: VendorStatus;
 
