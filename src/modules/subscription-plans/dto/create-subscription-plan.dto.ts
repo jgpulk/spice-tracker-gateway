@@ -2,17 +2,21 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsBoolean,
   IsEnum,
+  IsNotEmpty,
   IsNumber,
   IsOptional,
   IsPositive,
   IsString,
   MaxLength,
+  MinLength,
 } from 'class-validator';
 import { BillingCycle, PlanType } from '../entities/subscription-plan.entity';
 
 export class CreateSubscriptionPlanDto {
   @ApiProperty({ example: 'Starter Monthly' })
   @IsString()
+  @IsNotEmpty()
+  @MinLength(2)
   @MaxLength(100)
   name: string;
 
