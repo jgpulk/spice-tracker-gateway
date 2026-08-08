@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Patch, UseGuards, ParseIntPipe } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Patch, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { FarmersService } from './farmers.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -29,14 +29,14 @@ export class FarmersController {
   }
 
   @Get(':id')
-  @ApiOperation({ summary: 'Get a farmer by ID' })
-  findOne(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: any) {
+  @ApiOperation({ summary: 'Get a farmer by public ID' })
+  findOne(@Param('id') id: string, @CurrentUser() user: any) {
     return this.farmersService.findOne(id, user.vendor_id);
   }
 
   @Patch(':id')
   @ApiOperation({ summary: 'Update a farmer' })
-  update(@Param('id', ParseIntPipe) id: number, @Body() body: CreateFarmerDto, @CurrentUser() user: any) {
+  update(@Param('id') id: string, @Body() body: CreateFarmerDto, @CurrentUser() user: any) {
     return this.farmersService.update(id, user.vendor_id, body);
   }
 }

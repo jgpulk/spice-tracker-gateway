@@ -1,4 +1,7 @@
+import { randomUUID } from 'crypto';
+import { Exclude } from 'class-transformer';
 import {
+  BeforeInsert,
   Column,
   CreateDateColumn,
   Entity,
@@ -29,24 +32,25 @@ export enum OnboardingSource {
 
 @Entity('vendors')
 export class Vendor {
+  @Exclude()
   @PrimaryGeneratedColumn()
   id_vendor: number;
 
-  // --- Shop identity ---
+  @Column({ type: 'varchar', length: 36, unique: true })
+  public_id: string;
+
   @Column({ length: 255 })
   name: string;
 
   @Column({ length: 100, unique: true })
   subdomain: string;
 
-  // --- Contact ---
   @Column({ length: 255, unique: true })
   email: string;
 
   @Column({ length: 20, unique: true })
   phone: string;
 
-  // --- Address ---
   @Column({ type: 'text' })
   address: string;
 
@@ -62,14 +66,12 @@ export class Vendor {
   @Column({ length: 20 })
   pincode: string;
 
-  // --- Business details ---
   @Column({ type: 'varchar', length: 255, nullable: true, unique: true })
   business_reg_no: string | null;
 
   @Column({ type: 'varchar', length: 255, nullable: true })
   business_type: string | null;
 
-  // --- Status & onboarding ---
   @Column({ type: 'enum', enum: VendorStatus, default: VendorStatus.TRIAL })
   status: VendorStatus;
 
@@ -87,6 +89,11 @@ export class Vendor {
 
   @UpdateDateColumn()
   updated_at: Date;
+
+  @BeforeInsert()
+  setPublicId() {
+    this.public_id = randomUUID();
+  }
 
   @OneToMany(() => VendorSubscription, (sub) => sub.vendor)
   subscriptions: VendorSubscription[];

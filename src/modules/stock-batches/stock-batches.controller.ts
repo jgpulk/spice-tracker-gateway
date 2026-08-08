@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, UseGuards, ParseIntPipe } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { StockBatchesService } from './stock-batches.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -29,8 +29,8 @@ export class StockBatchesController {
   }
 
   @Get(':id')
-  @ApiOperation({ summary: 'Get a stock batch by ID' })
-  findOne(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: any) {
+  @ApiOperation({ summary: 'Get a stock batch by public ID' })
+  findOne(@Param('id') id: string, @CurrentUser() user: any) {
     return this.stockBatchesService.findOne(id, user.vendor_id);
   }
 }

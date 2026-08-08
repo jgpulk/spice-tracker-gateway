@@ -1,4 +1,7 @@
+import { randomUUID } from 'crypto';
+import { Exclude } from 'class-transformer';
 import {
+  BeforeInsert,
   Column,
   CreateDateColumn,
   Entity,
@@ -19,8 +22,12 @@ export enum DryingLotStatus {
 
 @Entity('drying_lots')
 export class DryingLot {
+  @Exclude()
   @PrimaryGeneratedColumn()
   id_drying_lot: number;
+
+  @Column({ type: 'varchar', length: 36, unique: true })
+  public_id: string;
 
   @Column()
   vendor_id: number;
@@ -55,6 +62,11 @@ export class DryingLot {
 
   @UpdateDateColumn()
   updated_at: Date;
+
+  @BeforeInsert()
+  setPublicId() {
+    this.public_id = randomUUID();
+  }
 
   @ManyToOne(() => Vendor, (vendor) => vendor.drying_lots)
   @JoinColumn({ name: 'vendor_id' })

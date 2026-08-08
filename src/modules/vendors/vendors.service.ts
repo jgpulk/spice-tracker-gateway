@@ -24,16 +24,16 @@ export class VendorsService {
     });
   }
 
-  async findOne(id: number) {
+  async findOne(publicId: string) {
     const vendor = await this.vendorRepo.findOne({
-      where: { id_vendor: id },
+      where: { public_id: publicId },
       relations: ['subscriptions', 'subscriptions.plan'],
     });
     if (!vendor) throw new NotFoundException('Vendor not found');
     return vendor;
   }
 
-  private async checkDuplicates(dto: CreateVendorDto, excludeId?: number) {
+  private async checkDuplicates(dto: CreateVendorDto, excludePublicId?: string) {
     const checks: { field: string; value: string | undefined }[] = [
       { field: 'email', value: dto.email },
       { field: 'phone', value: dto.phone },
@@ -44,7 +44,7 @@ export class VendorsService {
     for (const { field, value } of checks) {
       if (!value) continue;
       const existing = await this.vendorRepo.findOneBy({ [field]: value } as any);
-      if (existing && existing.id_vendor !== excludeId) {
+      if (existing && existing.public_id !== excludePublicId) {
         throw new ConflictException(`A vendor with this ${field} already exists`);
       }
     }
@@ -96,31 +96,29 @@ export class VendorsService {
       }),
     );
 
-    return this.findOne(saved.id_vendor);
+    return this.findOne(saved.public_id);
   }
 
-  async update(id: number, data: Partial<Vendor>) {
-    await this.findOne(id);
-    await this.vendorRepo.update(id, data);
-    return this.findOne(id);
+  async update(publicId: string, data: Partial<Vendor>) {
+    const vendor = await this.findOne(publicId);
+    await this.vendorRepo.update(vendor.id_vendor, data);
+    return this.findOne(publicId);
   }
 
-  async activateVendor(id: number, planId: number) {
-    await this.findOne(id);
-    await this.plansService.findOne(planId); // validates plan exists
+  async activateVendor(publicId: string, planPublicId: string) {
+    const vendor = await this.findOne(publicId);
+    const plan = await this.plansService.findOne(planPublicId);
 
-    // Expire any currently active subscription
     await this.subscriptionRepo.update(
-      { vendor_id: id, status: SubscriptionStatus.ACTIVE },
+      { vendor_id: vendor.id_vendor, status: SubscriptionStatus.ACTIVE },
       { status: SubscriptionStatus.EXPIRED },
     );
 
-    // Insert new paid subscription (no end_date = ongoing)
     const today = new Date();
     await this.subscriptionRepo.save(
       this.subscriptionRepo.create({
-        vendor_id: id,
-        plan_id: planId,
+        vendor_id: vendor.id_vendor,
+        plan_id: plan.id_subscription_plan,
         is_trial: false,
         status: SubscriptionStatus.ACTIVE,
         start_date: today,
@@ -128,8 +126,8 @@ export class VendorsService {
       }),
     );
 
-    await this.vendorRepo.update(id, { status: VendorStatus.ACTIVE });
-    return this.findOne(id);
+    await this.vendorRepo.update(vendor.id_vendor, { status: VendorStatus.ACTIVE });
+    return this.findOne(publicId);
   }
 
   @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT)

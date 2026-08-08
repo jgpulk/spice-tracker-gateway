@@ -14,8 +14,8 @@ export class ClientsService {
     return this.clientRepo.find();
   }
 
-  async findOne(id: number) {
-    const client = await this.clientRepo.findOneBy({ id_client: id });
+  async findOne(publicId: string) {
+    const client = await this.clientRepo.findOneBy({ public_id: publicId });
     if (!client) throw new NotFoundException('Client not found');
     return client;
   }
@@ -24,9 +24,9 @@ export class ClientsService {
     return this.clientRepo.save(this.clientRepo.create(data));
   }
 
-  async update(id: number, data: Partial<Client>) {
-    await this.findOne(id);
-    await this.clientRepo.update(id, data);
-    return this.findOne(id);
+  async update(publicId: string, data: Partial<Client>) {
+    const client = await this.findOne(publicId);
+    await this.clientRepo.update(client.id_client, data);
+    return this.findOne(publicId);
   }
 }

@@ -1,13 +1,4 @@
-import {
-  Controller,
-  Get,
-  Post,
-  Patch,
-  Param,
-  Body,
-  UseGuards,
-  ParseIntPipe,
-} from '@nestjs/common';
+import { Controller, Get, Post, Patch, Param, Body, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { SubscriptionPlansService } from './subscription-plans.service';
 import { CreateSubscriptionPlanDto } from './dto/create-subscription-plan.dto';
@@ -32,8 +23,8 @@ export class SubscriptionPlansController {
 
   @Roles(Role.SUPER_ADMIN)
   @Get(':id')
-  @ApiOperation({ summary: 'Get a subscription plan by ID (Super Admin only)' })
-  findOne(@Param('id', ParseIntPipe) id: number) {
+  @ApiOperation({ summary: 'Get a subscription plan by public ID (Super Admin only)' })
+  findOne(@Param('id') id: string) {
     return this.plansService.findOne(id);
   }
 
@@ -47,7 +38,7 @@ export class SubscriptionPlansController {
   @Roles(Role.SUPER_ADMIN)
   @Patch(':id')
   @ApiOperation({ summary: 'Update a subscription plan (Super Admin only)' })
-  update(@Param('id', ParseIntPipe) id: number, @Body() dto: CreateSubscriptionPlanDto) {
+  update(@Param('id') id: string, @Body() dto: CreateSubscriptionPlanDto) {
     return this.plansService.update(id, dto);
   }
 }

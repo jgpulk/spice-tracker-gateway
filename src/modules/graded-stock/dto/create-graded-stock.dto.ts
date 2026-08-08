@@ -1,11 +1,11 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsEnum, IsInt, IsNumber, IsPositive } from 'class-validator';
+import { IsEnum, IsNumber, IsPositive, IsUUID } from 'class-validator';
 import { Grade } from '../../../common/enums/grade.enum';
 
 export class CreateGradedStockDto {
-  @ApiProperty({ example: 1, description: 'ID of the drying lot' })
-  @IsInt()
-  drying_lot_id: number;
+  @ApiProperty({ example: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890', description: 'public_id of the drying lot' })
+  @IsUUID()
+  drying_lot_public_id: string;
 
   @ApiProperty({ enum: Grade, example: Grade.GRADE_A })
   @IsEnum(Grade)
@@ -16,7 +16,7 @@ export class CreateGradedStockDto {
   @IsPositive()
   weight_kg: number;
 
-  @ApiProperty({ example: 1200.00, description: 'Target sell price per kg' })
+  @ApiProperty({ example: 1200.0, description: 'Target sell price per kg' })
   @IsNumber()
   @IsPositive()
   price_per_kg: number;

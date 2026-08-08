@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Patch, UseGuards, ParseIntPipe } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Patch, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { DryingLotsService } from './drying-lots.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -26,18 +26,18 @@ export class DryingLotsController {
   @Post()
   @ApiOperation({ summary: 'Start a new drying lot and assign batches to it (batches → IN_DRYING)' })
   create(@Body() body: CreateDryingLotDto, @CurrentUser() user: any) {
-    return this.dryingLotsService.create(user.vendor_id, body.lot_name, body.batch_ids);
+    return this.dryingLotsService.create(user.vendor_id, body.lot_name, body.batch_public_ids);
   }
 
   @Get(':id')
-  @ApiOperation({ summary: 'Get a drying lot by ID' })
-  findOne(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: any) {
+  @ApiOperation({ summary: 'Get a drying lot by public ID' })
+  findOne(@Param('id') id: string, @CurrentUser() user: any) {
     return this.dryingLotsService.findOne(id, user.vendor_id);
   }
 
   @Patch(':id/complete')
   @ApiOperation({ summary: 'Complete a drying lot — enter final dry weight, calculates yield % (batches → PROCESSED)' })
-  complete(@Param('id', ParseIntPipe) id: number, @Body() body: CompleteDryingLotDto, @CurrentUser() user: any) {
+  complete(@Param('id') id: string, @Body() body: CompleteDryingLotDto, @CurrentUser() user: any) {
     return this.dryingLotsService.complete(id, user.vendor_id, body.final_dry_weight_kg);
   }
 }

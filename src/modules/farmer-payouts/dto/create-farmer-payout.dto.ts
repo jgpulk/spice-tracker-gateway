@@ -2,20 +2,26 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
   IsDate,
-  IsInt,
   IsNumber,
   IsOptional,
   IsPositive,
+  IsUUID,
 } from 'class-validator';
 
 export class CreateFarmerPayoutDto {
-  @ApiProperty({ example: 1, description: 'ID of the farmer' })
-  @IsInt()
-  farmer_id!: number;
+  @ApiProperty({
+    example: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+    description: 'public_id of the farmer',
+  })
+  @IsUUID()
+  farmer_public_id!: string;
 
-  @ApiProperty({ example: 1, description: 'ID of the stock batch' })
-  @IsInt()
-  batch_id!: number;
+  @ApiProperty({
+    example: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+    description: 'public_id of the stock batch',
+  })
+  @IsUUID()
+  batch_public_id!: string;
 
   @ApiProperty({ example: 102250.0, description: 'Amount to pay the farmer' })
   @IsNumber()

@@ -26,12 +26,12 @@ export class SalesController {
   @Post('direct-raw')
   @ApiOperation({ summary: 'Workflow A — Sell raw batches directly to a client (batches → SOLD_RAW)' })
   sellRaw(@Body() body: CreateDirectRawSaleDto, @CurrentUser() user: any) {
-    return this.salesService.createDirectRawSale(user.vendor_id, body.client_id, body.batch_ids, body.notes);
+    return this.salesService.createDirectRawSale(user.vendor_id, body.client_public_id, body.batch_public_ids, body.notes);
   }
 
   @Post('processed')
   @ApiOperation({ summary: 'Workflow B — Sell processed graded stock to a client' })
   sellProcessed(@Body() body: CreateProcessedSaleDto, @CurrentUser() user: any) {
-    return this.salesService.createProcessedSale(user.vendor_id, body.client_id, body.items, body.notes);
+    return this.salesService.createProcessedSale(user.vendor_id, body.client_public_id, body.items, body.notes);
   }
 }

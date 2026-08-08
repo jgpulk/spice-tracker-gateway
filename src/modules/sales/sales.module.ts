@@ -7,9 +7,10 @@ import { SaleBatch } from './entities/sale-batch.entity';
 import { SaleStockItem } from './entities/sale-stock-item.entity';
 import { StockBatch } from '../stock-batches/entities/stock-batch.entity';
 import { GradedStock } from '../graded-stock/entities/graded-stock.entity';
+import { Client } from '../clients/entities/client.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Sale, SaleBatch, SaleStockItem, StockBatch, GradedStock])],
+  imports: [TypeOrmModule.forFeature([Sale, SaleBatch, SaleStockItem, StockBatch, GradedStock, Client])],
   controllers: [SalesController],
   providers: [SalesService],
   exports: [SalesService],

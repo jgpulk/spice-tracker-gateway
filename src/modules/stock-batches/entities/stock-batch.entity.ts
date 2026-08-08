@@ -1,4 +1,16 @@
-import { Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, OneToMany, PrimaryGeneratedColumn, UpdateDateColumn } from 'typeorm';
+import { randomUUID } from 'crypto';
+import { Exclude } from 'class-transformer';
+import {
+  BeforeInsert,
+  Column,
+  CreateDateColumn,
+  Entity,
+  JoinColumn,
+  ManyToOne,
+  OneToMany,
+  PrimaryGeneratedColumn,
+  UpdateDateColumn,
+} from 'typeorm';
 import { BatchStatus } from '../../../common/enums/batch-status.enum';
 import { Vendor } from '../../vendors/entities/vendor.entity';
 import { Farmer } from '../../farmers/entities/farmer.entity';
@@ -8,8 +20,12 @@ import { FarmerPayout } from '../../farmer-payouts/entities/farmer-payout.entity
 
 @Entity('stock_batches')
 export class StockBatch {
+  @Exclude()
   @PrimaryGeneratedColumn()
   id_stock_batch: number;
+
+  @Column({ type: 'varchar', length: 36, unique: true })
+  public_id: string;
 
   @Column()
   vendor_id: number;
@@ -37,6 +53,11 @@ export class StockBatch {
 
   @Column({ type: 'text', nullable: true })
   notes: string;
+
+  @BeforeInsert()
+  setPublicId() {
+    this.public_id = randomUUID();
+  }
 
   @ManyToOne(() => Vendor, (vendor) => vendor.stock_batches)
   @JoinColumn({ name: 'vendor_id' })

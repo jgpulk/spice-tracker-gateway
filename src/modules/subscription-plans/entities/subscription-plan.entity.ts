@@ -1,4 +1,7 @@
+import { randomUUID } from 'crypto';
+import { Exclude } from 'class-transformer';
 import {
+  BeforeInsert,
   Column,
   CreateDateColumn,
   Entity,
@@ -21,8 +24,12 @@ export enum BillingCycle {
 
 @Entity('subscription_plans')
 export class SubscriptionPlan {
+  @Exclude()
   @PrimaryGeneratedColumn()
   id_subscription_plan: number;
+
+  @Column({ type: 'varchar', length: 36, unique: true })
+  public_id: string;
 
   @Column({ length: 100 })
   name: string;
@@ -47,6 +54,11 @@ export class SubscriptionPlan {
 
   @UpdateDateColumn()
   updated_at: Date;
+
+  @BeforeInsert()
+  setPublicId() {
+    this.public_id = randomUUID();
+  }
 
   @OneToMany(() => VendorSubscription, (sub) => sub.plan)
   vendor_subscriptions: VendorSubscription[];

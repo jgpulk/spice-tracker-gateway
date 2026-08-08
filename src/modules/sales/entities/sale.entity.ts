@@ -1,4 +1,16 @@
-import { Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, OneToMany, PrimaryGeneratedColumn, UpdateDateColumn } from 'typeorm';
+import { randomUUID } from 'crypto';
+import { Exclude } from 'class-transformer';
+import {
+  BeforeInsert,
+  Column,
+  CreateDateColumn,
+  Entity,
+  JoinColumn,
+  ManyToOne,
+  OneToMany,
+  PrimaryGeneratedColumn,
+  UpdateDateColumn,
+} from 'typeorm';
 import { SaleType } from '../../../common/enums/sale-type.enum';
 import { Vendor } from '../../vendors/entities/vendor.entity';
 import { Client } from '../../clients/entities/client.entity';
@@ -7,8 +19,12 @@ import { SaleStockItem } from './sale-stock-item.entity';
 
 @Entity('sales')
 export class Sale {
+  @Exclude()
   @PrimaryGeneratedColumn()
   id_sale: number;
+
+  @Column({ type: 'varchar', length: 36, unique: true })
+  public_id: string;
 
   @Column()
   vendor_id: number;
@@ -33,6 +49,11 @@ export class Sale {
 
   @Column({ type: 'text', nullable: true })
   notes: string;
+
+  @BeforeInsert()
+  setPublicId() {
+    this.public_id = randomUUID();
+  }
 
   @ManyToOne(() => Vendor, (vendor) => vendor.sales)
   @JoinColumn({ name: 'vendor_id' })

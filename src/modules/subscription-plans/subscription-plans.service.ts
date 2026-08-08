@@ -15,8 +15,8 @@ export class SubscriptionPlansService {
     return this.planRepo.find({ order: { plan_type: 'ASC', monthly_fee: 'ASC' } });
   }
 
-  async findOne(id: number) {
-    const plan = await this.planRepo.findOneBy({ id_subscription_plan: id });
+  async findOne(publicId: string) {
+    const plan = await this.planRepo.findOneBy({ public_id: publicId });
     if (!plan) throw new NotFoundException('Subscription plan not found');
     return plan;
   }
@@ -26,9 +26,9 @@ export class SubscriptionPlansService {
     return this.planRepo.save(plan);
   }
 
-  async update(id: number, dto: Partial<CreateSubscriptionPlanDto>) {
-    await this.findOne(id);
-    await this.planRepo.update(id, dto);
-    return this.findOne(id);
+  async update(publicId: string, dto: Partial<CreateSubscriptionPlanDto>) {
+    const plan = await this.findOne(publicId);
+    await this.planRepo.update(plan.id_subscription_plan, dto);
+    return this.findOne(publicId);
   }
 }

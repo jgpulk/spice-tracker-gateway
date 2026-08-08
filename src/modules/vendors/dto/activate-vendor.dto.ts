@@ -1,12 +1,11 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsInt, IsPositive } from 'class-validator';
+import { IsUUID } from 'class-validator';
 
 export class ActivateVendorDto {
   @ApiProperty({
-    example: 1,
-    description: 'ID of the subscription plan to assign (from /subscription-plans)',
+    example: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+    description: 'public_id of the subscription plan to assign (from /subscription-plans)',
   })
-  @IsInt()
-  @IsPositive()
-  plan_id: number;
+  @IsUUID()
+  plan_public_id: string;
 }
