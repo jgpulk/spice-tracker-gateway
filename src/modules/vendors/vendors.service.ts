@@ -89,6 +89,7 @@ export class VendorsService {
       this.subscriptionRepo.create({
         vendor_id: saved.id_vendor,
         plan_id: null,
+        is_trial: true,
         status: SubscriptionStatus.ACTIVE,
         start_date: today,
         end_date: trialEnd,
@@ -120,6 +121,7 @@ export class VendorsService {
       this.subscriptionRepo.create({
         vendor_id: id,
         plan_id: planId,
+        is_trial: false,
         status: SubscriptionStatus.ACTIVE,
         start_date: today,
         end_date: null,

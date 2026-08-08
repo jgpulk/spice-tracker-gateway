@@ -31,6 +31,9 @@ export class VendorSubscription {
   @Column({ type: 'enum', enum: SubscriptionStatus, default: SubscriptionStatus.ACTIVE })
   status: SubscriptionStatus;
 
+  @Column({ default: false })
+  is_trial: boolean;
+
   @Column({ type: 'date' })
   start_date: Date;
 
