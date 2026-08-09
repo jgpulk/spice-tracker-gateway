@@ -542,10 +542,43 @@ describe('Vendors — /api/v1/vendors (e2e)', () => {
       const active = updated.subscriptions.find((s: any) => s.status === SubscriptionStatus.ACTIVE);
       expect(active.is_trial).toBe(false);
       expect(active.plan.public_id).toBe(starterPlanPublicId);
-      expect(active.end_date).toBeNull();
+
+      // starterPlanPublicId is a MONTHLY plan — expect a real expiry ~1 month out,
+      // not the permanent (null end_date) subscription this used to create.
+      expect(active.end_date).not.toBeNull();
+      const monthsOut =
+        (new Date(active.end_date).getTime() - new Date(active.start_date).getTime()) / (30 * 86_400_000);
+      expect(monthsOut).toBeGreaterThan(0.9);
+      expect(monthsOut).toBeLessThan(1.1);
 
       const expiredTrial = updated.subscriptions.find((s: any) => s.is_trial);
       expect(expiredTrial.status).toBe(SubscriptionStatus.EXPIRED);
+    });
+
+    it('gives an ANNUAL plan a ~1-year expiry instead of a monthly one', async () => {
+      const annualPlan = await planRepo.save(
+        planRepo.create({
+          name: 'Starter Annual',
+          plan_type: PlanType.STARTER,
+          billing_cycle: BillingCycle.ANNUAL,
+          monthly_fee: 249,
+          is_active: true,
+        }),
+      );
+
+      const vendor = await onboardVendor();
+      const res = await asAdmin(
+        request(app.getHttpServer()).patch(`/api/v1/vendors/${vendor.body.data.public_id}/activate`),
+      )
+        .send({ plan_public_id: annualPlan.public_id })
+        .expect(200);
+
+      const active = res.body.data.subscriptions.find((s: any) => s.status === SubscriptionStatus.ACTIVE);
+      expect(active.end_date).not.toBeNull();
+      const daysOut =
+        (new Date(active.end_date).getTime() - new Date(active.start_date).getTime()) / 86_400_000;
+      expect(daysOut).toBeGreaterThan(360);
+      expect(daysOut).toBeLessThan(370);
     });
 
     it('re-activates an already-ACTIVE vendor onto a different plan', async () => {

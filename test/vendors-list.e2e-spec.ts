@@ -262,7 +262,9 @@ describe('Vendors — GET /api/v1/vendors (list all, e2e)', () => {
 
       expect(item.subscription.status).toBe(SubscriptionStatus.ACTIVE);
       expect(item.subscription.is_trial).toBe(false);
-      expect(item.subscription.expires_at).toBeNull();
+      // starterPlanPublicId is a MONTHLY plan — activateVendor() now gives
+      // paid subscriptions a real expiry instead of leaving it permanent.
+      expect(item.subscription.expires_at).not.toBeNull();
       expect(item.subscription.plan).toEqual({ name: 'Starter Monthly', plan_type: PlanType.STARTER });
       expect(Object.keys(item.subscription.plan)).toEqual(['name', 'plan_type']);
     });
