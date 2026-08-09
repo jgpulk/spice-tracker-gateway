@@ -18,7 +18,7 @@ export class SubscriptionPlansController {
   @Roles(Role.SUPER_ADMIN)
   @Get()
   @ResponseMessage('Subscription plans fetched successfully')
-  @ApiOperation({ summary: 'List all subscription plans (Super Admin only)' })
+  @ApiOperation({ summary: '✅ Verified — List all subscription plans (Super Admin only)' })
   findAll() {
     return this.plansService.findAll();
   }

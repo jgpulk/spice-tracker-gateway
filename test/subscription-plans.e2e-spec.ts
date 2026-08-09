@@ -188,6 +188,61 @@ describe('Subscription Plans — /api/v1/subscription-plans (e2e)', () => {
       expect(Array.isArray(res.body.data)).toBe(true);
       expect(res.body.data.length).toBeGreaterThan(0);
     });
+
+    it('returns a curated shape per plan — no internal PK, no timestamps', async () => {
+      const plan = await createPlan({ description: 'A described plan' }).expect(201);
+
+      const res = await asAdmin(request(app.getHttpServer()).get('/api/v1/subscription-plans')).expect(200);
+      const item = res.body.data.find((p: any) => p.public_id === plan.body.data.public_id);
+
+      expect(item).toBeDefined();
+      expect(Object.keys(item).sort()).toEqual(
+        ['billing_cycle', 'description', 'is_active', 'is_default_trial', 'monthly_fee', 'name', 'plan_type', 'public_id'].sort(),
+      );
+      expect(item.id_subscription_plan).toBeUndefined();
+      expect(item.created_at).toBeUndefined();
+      expect(item.updated_at).toBeUndefined();
+    });
+
+    it('includes deactivated (is_active: false) plans in the list too — no filtering', async () => {
+      const active = await createPlan().expect(201);
+      const inactive = await planRepo.save(
+        planRepo.create({
+          name: 'Deactivated Plan',
+          plan_type: PlanType.STARTER,
+          billing_cycle: BillingCycle.MONTHLY,
+          monthly_fee: 149,
+          is_active: false,
+        }),
+      );
+
+      const res = await asAdmin(request(app.getHttpServer()).get('/api/v1/subscription-plans')).expect(200);
+      const ids = res.body.data.map((p: any) => p.public_id);
+
+      expect(ids).toContain(active.body.data.public_id);
+      expect(ids).toContain(inactive.public_id);
+
+      const item = res.body.data.find((p: any) => p.public_id === inactive.public_id);
+      expect(item.is_active).toBe(false);
+    });
+
+    it('allows fetching a deactivated plan directly by id', async () => {
+      const inactive = await planRepo.save(
+        planRepo.create({
+          name: 'Deactivated But Fetchable',
+          plan_type: PlanType.STARTER,
+          billing_cycle: BillingCycle.MONTHLY,
+          monthly_fee: 149,
+          is_active: false,
+        }),
+      );
+
+      const res = await asAdmin(
+        request(app.getHttpServer()).get(`/api/v1/subscription-plans/${inactive.public_id}`),
+      ).expect(200);
+      expect(res.body.data.name).toBe('Deactivated But Fetchable');
+      expect(res.body.data.is_active).toBe(false);
+    });
   });
 
   describe('GET /subscription-plans/:id', () => {

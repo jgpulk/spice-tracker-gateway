@@ -11,8 +11,21 @@ export class SubscriptionPlansService {
     private readonly planRepo: Repository<SubscriptionPlan>,
   ) {}
 
-  findAll() {
-    return this.planRepo.find({ order: { plan_type: 'ASC', monthly_fee: 'ASC' } });
+  async findAll() {
+    const plans = await this.planRepo.find({
+      order: { plan_type: 'ASC', monthly_fee: 'ASC' },
+    });
+
+    return plans.map(({ public_id, name, plan_type, billing_cycle, monthly_fee, description, is_active, is_default_trial }) => ({
+      public_id,
+      name,
+      plan_type,
+      billing_cycle,
+      monthly_fee,
+      description,
+      is_active,
+      is_default_trial,
+    }));
   }
 
   async findOne(publicId: string) {
