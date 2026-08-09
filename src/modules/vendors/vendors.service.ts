@@ -22,10 +22,34 @@ export class VendorsService {
     private readonly plansService: SubscriptionPlansService,
   ) {}
 
-  findAll() {
-    return this.vendorRepo.find({
-      relations: ['subscriptions', 'subscriptions.plan'],
+  async findAll() {
+    const vendors = await this.vendorRepo.find({
+      relations: ['subscriptions', 'subscriptions.plan', 'onboarded_by', 'referred_by'],
       order: { created_at: 'DESC' },
+    });
+
+    return vendors.map((v) => {
+      const activeSub = v.subscriptions?.find((s) => s.status === SubscriptionStatus.ACTIVE) ?? null;
+      return {
+        public_id: v.public_id,
+        name: v.name,
+        subdomain: v.subdomain,
+        email: v.email,
+        phone: v.phone,
+        status: v.status,
+        onboarding_source: v.onboarding_source,
+        onboarded_by: v.onboarded_by ? { name: v.onboarded_by.name } : null,
+        referred_by: v.referred_by ? { name: v.referred_by.name } : null,
+        created_at: v.created_at,
+        subscription: activeSub
+          ? {
+              status: activeSub.status,
+              is_trial: activeSub.is_trial,
+              plan: activeSub.plan ? { name: activeSub.plan.name, plan_type: activeSub.plan.plan_type } : null,
+              expires_at: activeSub.end_date,
+            }
+          : null,
+      };
     });
   }
 

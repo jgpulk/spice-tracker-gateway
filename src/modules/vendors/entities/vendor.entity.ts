@@ -5,6 +5,8 @@ import {
   Column,
   CreateDateColumn,
   Entity,
+  JoinColumn,
+  ManyToOne,
   OneToMany,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
@@ -82,9 +84,17 @@ export class Vendor {
   @Column({ type: 'int', nullable: true })
   onboarded_by_user_id: number | null;
 
+  @ManyToOne(() => User, { nullable: true, eager: false })
+  @JoinColumn({ name: 'onboarded_by_user_id' })
+  onboarded_by: User | null;
+
   @Exclude()
   @Column({ type: 'int', nullable: true })
   referred_by_vendor_id: number | null;
+
+  @ManyToOne(() => Vendor, { nullable: true, eager: false })
+  @JoinColumn({ name: 'referred_by_vendor_id' })
+  referred_by: Vendor | null;
 
   @CreateDateColumn()
   created_at: Date;
