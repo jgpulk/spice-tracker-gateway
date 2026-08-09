@@ -40,12 +40,19 @@ describe('Vendors — /api/v1/vendors (e2e)', () => {
       city: 'Idukki',
       state: 'Kerala',
       pincode: '685602',
+      business_reg_no: `29ABCDE${String(n).padStart(4, '0')}Z5`,
+      business_type: 'Sole Proprietorship',
+      owner_name: 'Ravi Kumar',
+      owner_email: `owner-${n}@greencardamom.com`,
+      owner_password: 'OwnerSecret123!',
       ...overrides,
     };
   };
 
   // Builds a full CreateVendorDto-shaped payload from an existing vendor
   // response — PATCH /vendors/:id requires the whole DTO, not a partial.
+  // owner_* fields are required by the DTO but ignored by update() (they're
+  // only consumed on creation), so dummy values are enough here.
   const toUpdatePayload = (vendor: any, overrides: Record<string, unknown> = {}) => ({
     name: vendor.name,
     subdomain: vendor.subdomain,
@@ -56,8 +63,11 @@ describe('Vendors — /api/v1/vendors (e2e)', () => {
     state: vendor.state,
     country: vendor.country,
     pincode: vendor.pincode,
-    ...(vendor.business_reg_no ? { business_reg_no: vendor.business_reg_no } : {}),
-    ...(vendor.business_type ? { business_type: vendor.business_type } : {}),
+    business_reg_no: vendor.business_reg_no,
+    business_type: vendor.business_type,
+    owner_name: 'Ignored Owner',
+    owner_email: 'ignored-owner@example.com',
+    owner_password: 'IgnoredPass123!',
     ...overrides,
   });
 
@@ -214,6 +224,26 @@ describe('Vendors — /api/v1/vendors (e2e)', () => {
       expect(vendor.email).toBe(`shop-case-${n}@greencardamom.com`);
       expect(vendor.business_reg_no).toBe('29ABCDE1234F1Z5');
     });
+
+    it('creates a VENDOR_OWNER account for the new vendor that can log in', async () => {
+      const payload = validVendorPayload();
+      await asAdmin(request(app.getHttpServer()).post('/api/v1/vendors')).send(payload).expect(201);
+
+      const login = await request(app.getHttpServer())
+        .post('/api/v1/auth/login')
+        .send({ email: payload.owner_email, password: payload.owner_password })
+        .expect(201);
+
+      expect(login.body.data.user.role).toBe(Role.VENDOR_OWNER);
+      expect(login.body.data.user.vendor_id).not.toBeNull();
+
+      // The owner login must be scoped to this vendor, not some other one.
+      const staff = await request(app.getHttpServer())
+        .get('/api/v1/users')
+        .set('Authorization', `Bearer ${login.body.data.access_token}`)
+        .expect(200);
+      expect(staff.body.data.some((u: any) => u.email === payload.owner_email)).toBe(true);
+    });
   });
 
   describe('POST /vendors — validation and duplicate checks', () => {
@@ -295,11 +325,19 @@ describe('Vendors — /api/v1/vendors (e2e)', () => {
     });
 
     it('rejects a duplicate business_reg_no', async () => {
-      const first = validVendorPayload({ business_reg_no: `29ABCDE${++uniqueCounter}Z5` });
+      const first = validVendorPayload();
       await asAdmin(request(app.getHttpServer()).post('/api/v1/vendors')).send(first).expect(201);
 
       const res = await createVendor({ business_reg_no: first.business_reg_no }).expect(409);
       expect(res.body.message).toMatch(/business_reg_no/i);
+    });
+
+    it('rejects a duplicate owner_email already used by an existing user', async () => {
+      const first = validVendorPayload();
+      await asAdmin(request(app.getHttpServer()).post('/api/v1/vendors')).send(first).expect(201);
+
+      const res = await createVendor({ owner_email: first.owner_email }).expect(409);
+      expect(res.body.message).toMatch(/owner_email/i);
     });
   });
 
