@@ -11,7 +11,7 @@ export class AuthController {
 
   @Post('login')
   @ResponseMessage('Login successful')
-  @ApiOperation({ summary: 'Login and receive a JWT token' })
+  @ApiOperation({ summary: '✅ Verified — Login and receive a JWT token' })
   login(@Body() body: LoginDto) {
     return this.authService.login(body.email, body.password);
   }

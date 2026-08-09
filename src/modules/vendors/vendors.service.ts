@@ -130,6 +130,8 @@ export class VendorsService {
 
     const saved = await this.vendorRepo.save(vendor);
 
+    const defaultPlan = await this.plansService.findDefaultTrialPlan();
+
     const today = new Date();
     const trialEnd = new Date(today);
     trialEnd.setDate(trialEnd.getDate() + 30);
@@ -137,7 +139,7 @@ export class VendorsService {
     await this.subscriptionRepo.save(
       this.subscriptionRepo.create({
         vendor_id: saved.id_vendor,
-        plan_id: null,
+        plan_id: defaultPlan?.id_subscription_plan ?? null,
         is_trial: true,
         status: SubscriptionStatus.ACTIVE,
         start_date: today,

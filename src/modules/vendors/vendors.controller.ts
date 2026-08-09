@@ -20,7 +20,9 @@ export class VendorsController {
   @Roles(Role.SUPER_ADMIN)
   @Get()
   @ResponseMessage('Vendors fetched successfully')
-  @ApiOperation({ summary: 'List all vendor shops with subscription history (Super Admin only)' })
+  @ApiOperation({
+    summary: '✅ Verified — List all vendor shops with subscription history (Super Admin only)',
+  })
   findAll() {
     return this.vendorsService.findAll();
   }
@@ -29,10 +31,11 @@ export class VendorsController {
   @Post()
   @ResponseMessage('Vendor onboarded successfully')
   @ApiOperation({
-    summary: 'Onboard a new vendor — starts a 30-day trial automatically (Super Admin only)',
+    summary:
+      '✅ Verified — Onboard a new vendor — starts a 30-day trial automatically (Super Admin only)',
   })
-  create(@Body() body: CreateVendorDto, @CurrentUser() user: any) {
-    return this.vendorsService.create(body, user.id_user);
+  async create(@Body() body: CreateVendorDto, @CurrentUser() user: any) {
+    await this.vendorsService.create(body, user.id_user);
   }
 
   @Roles(Role.SUPER_ADMIN)

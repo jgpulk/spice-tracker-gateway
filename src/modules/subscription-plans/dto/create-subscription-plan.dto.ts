@@ -42,4 +42,12 @@ export class CreateSubscriptionPlanDto {
   @IsBoolean()
   @IsOptional()
   is_active?: boolean;
+
+  @ApiPropertyOptional({
+    example: false,
+    description: 'Mark this plan as the default trial plan given to every new vendor on onboarding. Only one plan can hold this flag at a time.',
+  })
+  @IsBoolean()
+  @IsOptional()
+  is_default_trial?: boolean;
 }

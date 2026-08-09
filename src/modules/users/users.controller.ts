@@ -36,7 +36,7 @@ export class UsersController {
   @Roles(Role.SUPER_ADMIN)
   @Post('super-admin')
   @ResponseMessage('Super admin created successfully')
-  @ApiOperation({ summary: 'Create a new super admin (Super Admin only)' })
+  @ApiOperation({ summary: '✅ Verified — Create a new super admin (Super Admin only)' })
   async createSuperAdmin(@Body() body: CreateSuperAdminDto) {
     await this.usersService.createSuperAdmin(body.name, body.email, body.password);
     // no return — response will be { status: true, message: "..." } with no data field
