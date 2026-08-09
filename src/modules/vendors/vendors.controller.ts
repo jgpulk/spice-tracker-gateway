@@ -50,7 +50,7 @@ export class VendorsController {
   @Roles(Role.SUPER_ADMIN)
   @Patch(':id')
   @ResponseMessage('Vendor updated successfully')
-  @ApiOperation({ summary: 'Update vendor details (Super Admin only)' })
+  @ApiOperation({ summary: '✅ Verified — Update vendor details (Super Admin only)' })
   update(@Param('id') id: string, @Body() body: UpdateVendorDto) {
     return this.vendorsService.update(id, body);
   }

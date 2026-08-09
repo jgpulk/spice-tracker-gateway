@@ -242,6 +242,9 @@ export class VendorsService {
   async activateVendor(publicId: string, planPublicId: string) {
     const vendor = await this.getVendorOrFail(publicId);
     const plan = await this.plansService.findOne(planPublicId);
+    if (!plan.is_active) {
+      throw new BadRequestException('Cannot activate a vendor onto a deactivated plan');
+    }
 
     await this.subscriptionRepo.update(
       { vendor_id: vendor.id_vendor, status: SubscriptionStatus.ACTIVE },

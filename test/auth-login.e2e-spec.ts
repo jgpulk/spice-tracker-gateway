@@ -19,6 +19,8 @@ describe('Auth — /api/v1/auth/login (e2e)', () => {
   const ADMIN_PASSWORD = 'AdminPass123!';
   const OWNER_EMAIL = 'e2e-login-owner@spicewallet.test';
   const OWNER_PASSWORD = 'OwnerPass123!';
+  const STAFF_EMAIL = 'e2e-login-staff@spicewallet.test';
+  const STAFF_PASSWORD = 'StaffPass123!';
   const INACTIVE_EMAIL = 'e2e-login-inactive@spicewallet.test';
   const INACTIVE_PASSWORD = 'InactivePass123!';
 
@@ -70,6 +72,17 @@ describe('Auth — /api/v1/auth/login (e2e)', () => {
         email: OWNER_EMAIL,
         password_hash: await bcrypt.hash(OWNER_PASSWORD, 10),
         role: Role.VENDOR_OWNER,
+        vendor_id: vendor.id_vendor,
+        is_active: true,
+      }),
+    );
+
+    await userRepo.save(
+      userRepo.create({
+        name: 'E2E Login Staff',
+        email: STAFF_EMAIL,
+        password_hash: await bcrypt.hash(STAFF_PASSWORD, 10),
+        role: Role.WAREHOUSE_STAFF,
         vendor_id: vendor.id_vendor,
         is_active: true,
       }),
@@ -129,6 +142,25 @@ describe('Auth — /api/v1/auth/login (e2e)', () => {
       // A VENDOR_OWNER token must not carry SUPER_ADMIN privileges.
       await request(app.getHttpServer())
         .get('/api/v1/vendors')
+        .set('Authorization', `Bearer ${access_token}`)
+        .expect(403);
+    });
+
+    it('logs in a WAREHOUSE_STAFF with a token scoped to their vendor but no admin/owner privileges', async () => {
+      const res = await login({ email: STAFF_EMAIL, password: STAFF_PASSWORD }).expect(201);
+
+      const { access_token, user } = res.body.data;
+      expect(user.role).toBe(Role.WAREHOUSE_STAFF);
+      expect(user.vendor_id).toBe(vendor.public_id);
+
+      // WAREHOUSE_STAFF is neither SUPER_ADMIN nor VENDOR_OWNER — both of
+      // those role-gated routes must reject this token.
+      await request(app.getHttpServer())
+        .get('/api/v1/vendors')
+        .set('Authorization', `Bearer ${access_token}`)
+        .expect(403);
+      await request(app.getHttpServer())
+        .get('/api/v1/users')
         .set('Authorization', `Bearer ${access_token}`)
         .expect(403);
     });

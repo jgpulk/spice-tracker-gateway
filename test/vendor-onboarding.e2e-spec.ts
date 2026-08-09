@@ -49,15 +49,13 @@ describe('Vendors — /api/v1/vendors (e2e)', () => {
     };
   };
 
-  // Builds a full CreateVendorDto-shaped payload from an existing vendor
+  // Builds a full UpdateVendorDto-shaped payload from an existing vendor
   // response — PATCH /vendors/:id requires the whole DTO, not a partial.
-  // owner_* fields are required by the DTO but ignored by update() (they're
-  // only consumed on creation), so dummy values are enough here.
+  // UpdateVendorDto deliberately has no email/phone/owner_*/onboarding_source
+  // fields — those are create-only and can no longer be changed via update.
   const toUpdatePayload = (vendor: any, overrides: Record<string, unknown> = {}) => ({
     name: vendor.name,
     subdomain: vendor.subdomain,
-    email: vendor.email,
-    phone: vendor.phone,
     address: vendor.address,
     city: vendor.city,
     state: vendor.state,
@@ -65,11 +63,25 @@ describe('Vendors — /api/v1/vendors (e2e)', () => {
     pincode: vendor.pincode,
     business_reg_no: vendor.business_reg_no,
     business_type: vendor.business_type,
-    owner_name: 'Ignored Owner',
-    owner_email: 'ignored-owner@example.com',
-    owner_password: 'IgnoredPass123!',
     ...overrides,
   });
+
+  // Same UpdateVendorDto shape but standalone — for tests with no existing
+  // vendor to derive a payload from (e.g. hitting an unknown id).
+  const validUpdatePayload = (overrides: Record<string, unknown> = {}): Record<string, any> => {
+    const n = ++uniqueCounter;
+    return {
+      name: 'Updated Shop Name',
+      subdomain: `updated-shop-${n}`,
+      address: '99, Updated Street',
+      city: 'Kochi',
+      state: 'Kerala',
+      pincode: '682001',
+      business_reg_no: `29UPDATED${String(n).padStart(4, '0')}`,
+      business_type: 'Sole Proprietorship',
+      ...overrides,
+    };
+  };
 
   const asAdmin = (req: request.Test) => req.set('Authorization', `Bearer ${superAdminToken}`);
   const asOwner = (req: request.Test) => req.set('Authorization', `Bearer ${vendorOwnerToken}`);
@@ -332,6 +344,21 @@ describe('Vendors — /api/v1/vendors (e2e)', () => {
       expect(saved!.referred_by_vendor_id).toBeNull();
     });
 
+    it('accepts onboarding_source: SELF with no referrer and no onboarded_by admin', async () => {
+      const fetched = await onboardVendor({ onboarding_source: OnboardingSource.SELF });
+
+      expect(fetched.body.data.onboarding_source).toBe(OnboardingSource.SELF);
+      expect(fetched.body.data.onboarded_by).toBeNull();
+      expect(fetched.body.data.referred_by).toBeNull();
+    });
+
+    it('rejects referred_by_vendor_public_id set alongside onboarding_source: SELF', () => {
+      return createVendor({
+        onboarding_source: OnboardingSource.SELF,
+        referred_by_vendor_public_id: '00000000-0000-0000-0000-000000000000',
+      }).expect(400);
+    });
+
     it('rejects a duplicate email', async () => {
       const first = validVendorPayload();
       await asAdmin(request(app.getHttpServer()).post('/api/v1/vendors')).send(first).expect(201);
@@ -473,7 +500,7 @@ describe('Vendors — /api/v1/vendors (e2e)', () => {
 
     it('404s on an unknown (but well-formed) vendor id', () => {
       return asAdmin(request(app.getHttpServer()).patch('/api/v1/vendors/00000000-0000-0000-0000-000000000000'))
-        .send(validVendorPayload())
+        .send(validUpdatePayload())
         .expect(404);
     });
 
@@ -492,16 +519,14 @@ describe('Vendors — /api/v1/vendors (e2e)', () => {
       expect(single.body.data.city).toBe('Changed City');
     });
 
-    it('rejects updating to an email already used by another vendor', async () => {
-      const other = await onboardVendor();
-      const target = await onboardVendor();
+    it('applies the default country when omitted', async () => {
+      const vendor = await onboardVendor();
+      const { country: _omit, ...withoutCountry } = toUpdatePayload(vendor.body.data);
 
-      const res = await asAdmin(
-        request(app.getHttpServer()).patch(`/api/v1/vendors/${target.body.data.public_id}`),
-      )
-        .send(toUpdatePayload(target.body.data, { email: other.body.data.email }))
-        .expect(409);
-      expect(res.body.message).toMatch(/email/i);
+      const res = await asAdmin(request(app.getHttpServer()).patch(`/api/v1/vendors/${vendor.body.data.public_id}`))
+        .send(withoutCountry)
+        .expect(200);
+      expect(res.body.data.country).toBe('India');
     });
 
     it('rejects updating to a subdomain already used by another vendor', async () => {
@@ -513,7 +538,19 @@ describe('Vendors — /api/v1/vendors (e2e)', () => {
         .expect(409);
     });
 
-    it('allows re-saving a vendor with its own unchanged email/subdomain (not a false-positive duplicate)', async () => {
+    it('rejects updating to a business_reg_no already used by another vendor', async () => {
+      const other = await onboardVendor();
+      const target = await onboardVendor();
+
+      const res = await asAdmin(
+        request(app.getHttpServer()).patch(`/api/v1/vendors/${target.body.data.public_id}`),
+      )
+        .send(toUpdatePayload(target.body.data, { business_reg_no: other.body.data.business_reg_no }))
+        .expect(409);
+      expect(res.body.message).toMatch(/business_reg_no/i);
+    });
+
+    it('allows re-saving a vendor with its own unchanged subdomain/business_reg_no (not a false-positive duplicate)', async () => {
       const vendor = await onboardVendor();
 
       await asAdmin(request(app.getHttpServer()).patch(`/api/v1/vendors/${vendor.body.data.public_id}`))
@@ -521,33 +558,51 @@ describe('Vendors — /api/v1/vendors (e2e)', () => {
         .expect(200);
     });
 
-    it('links a referrer via referred_by_vendor_public_id on update', async () => {
-      const referrer = await onboardVendor();
-      const target = await onboardVendor();
+    it('cannot change email or phone — those fields are no longer part of the update DTO', async () => {
+      const vendor = await onboardVendor();
 
-      const res = await asAdmin(
-        request(app.getHttpServer()).patch(`/api/v1/vendors/${target.body.data.public_id}`),
-      )
-        .send(
-          toUpdatePayload(target.body.data, {
-            onboarding_source: OnboardingSource.REFERRAL,
-            referred_by_vendor_public_id: referrer.body.data.public_id,
-          }),
-        )
-        .expect(200);
+      await asAdmin(request(app.getHttpServer()).patch(`/api/v1/vendors/${vendor.body.data.public_id}`))
+        .send({ ...toUpdatePayload(vendor.body.data), email: 'changed@example.com' })
+        .expect(400); // forbidNonWhitelisted rejects the unknown field outright
 
-      expect(res.body.data.onboarding_source).toBe(OnboardingSource.REFERRAL);
-
-      const saved = await vendorRepo.findOneBy({ public_id: target.body.data.public_id });
-      const referrerRow = await vendorRepo.findOneBy({ public_id: referrer.body.data.public_id });
-      expect(saved!.referred_by_vendor_id).toBe(referrerRow!.id_vendor);
+      const single = await asAdmin(
+        request(app.getHttpServer()).get(`/api/v1/vendors/${vendor.body.data.public_id}`),
+      ).expect(200);
+      expect(single.body.data.email).toBe(vendor.body.data.email);
     });
 
-    it('rejects REFERRAL source missing referred_by_vendor_public_id on update', async () => {
+    it('rejects onboarding-only fields (owner_email, onboarding_source, etc.) as unknown fields', async () => {
       const vendor = await onboardVendor();
+
       await asAdmin(request(app.getHttpServer()).patch(`/api/v1/vendors/${vendor.body.data.public_id}`))
-        .send(toUpdatePayload(vendor.body.data, { onboarding_source: OnboardingSource.REFERRAL }))
+        .send({ ...toUpdatePayload(vendor.body.data), onboarding_source: OnboardingSource.REFERRAL })
         .expect(400);
+    });
+
+    it('rejects missing required fields', async () => {
+      const vendor = await onboardVendor();
+      const res = await asAdmin(request(app.getHttpServer()).patch(`/api/v1/vendors/${vendor.body.data.public_id}`))
+        .send({})
+        .expect(400);
+
+      expect(res.body.fields.name).toBeDefined();
+      expect(res.body.fields.subdomain).toBeDefined();
+      expect(res.body.fields.address).toBeDefined();
+      expect(res.body.fields.city).toBeDefined();
+      expect(res.body.fields.state).toBeDefined();
+      expect(res.body.fields.pincode).toBeDefined();
+      expect(res.body.fields.business_reg_no).toBeDefined();
+      expect(res.body.fields.business_type).toBeDefined();
+    });
+
+    it('rejects malformed fields (subdomain, pincode)', async () => {
+      const vendor = await onboardVendor();
+      const res = await asAdmin(request(app.getHttpServer()).patch(`/api/v1/vendors/${vendor.body.data.public_id}`))
+        .send(toUpdatePayload(vendor.body.data, { subdomain: 'Not Valid!', pincode: 'abc' }))
+        .expect(400);
+
+      expect(res.body.fields.subdomain).toBeDefined();
+      expect(res.body.fields.pincode).toBeDefined();
     });
   });
 
@@ -595,6 +650,32 @@ describe('Vendors — /api/v1/vendors (e2e)', () => {
       )
         .send({ plan_public_id: '00000000-0000-0000-0000-000000000000' })
         .expect(404);
+    });
+
+    it('rejects activation onto a deactivated (is_active: false) plan', async () => {
+      const inactivePlan = await planRepo.save(
+        planRepo.create({
+          name: 'Retired Plan',
+          plan_type: PlanType.STARTER,
+          billing_cycle: BillingCycle.MONTHLY,
+          monthly_fee: 199,
+          is_active: false,
+        }),
+      );
+      const vendor = await onboardVendor();
+
+      const res = await asAdmin(
+        request(app.getHttpServer()).patch(`/api/v1/vendors/${vendor.body.data.public_id}/activate`),
+      )
+        .send({ plan_public_id: inactivePlan.public_id })
+        .expect(400);
+      expect(res.body.message).toMatch(/deactivated/i);
+
+      // Vendor must remain untouched — no partial activation.
+      const single = await asAdmin(
+        request(app.getHttpServer()).get(`/api/v1/vendors/${vendor.body.data.public_id}`),
+      ).expect(200);
+      expect(single.body.data.status).toBe(VendorStatus.TRIAL);
     });
 
     it('returns no data payload on activation, only a success message', async () => {
