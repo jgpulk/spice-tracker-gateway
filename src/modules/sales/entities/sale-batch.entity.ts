@@ -4,8 +4,8 @@ import { StockBatch } from '../../stock-batches/entities/stock-batch.entity';
 
 @Entity('sale_batches')
 export class SaleBatch {
-  @PrimaryGeneratedColumn('uuid')
-  id: string;
+  @PrimaryGeneratedColumn()
+  id_sale_batch: number;
 
   @ManyToOne(() => Sale, (sale) => sale.sale_batches)
   @JoinColumn({ name: 'sale_id' })

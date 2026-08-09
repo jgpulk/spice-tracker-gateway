@@ -1,15 +1,31 @@
-import { Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
+import { randomUUID } from 'crypto';
+import { Exclude } from 'class-transformer';
+import {
+  BeforeInsert,
+  Column,
+  CreateDateColumn,
+  Entity,
+  JoinColumn,
+  ManyToOne,
+  OneToMany,
+  PrimaryGeneratedColumn,
+  UpdateDateColumn,
+} from 'typeorm';
 import { Vendor } from '../../vendors/entities/vendor.entity';
 import { StockBatch } from '../../stock-batches/entities/stock-batch.entity';
 import { FarmerPayout } from '../../farmer-payouts/entities/farmer-payout.entity';
 
 @Entity('farmers')
 export class Farmer {
-  @PrimaryGeneratedColumn('uuid')
-  id: string;
+  @Exclude()
+  @PrimaryGeneratedColumn()
+  id_farmer: number;
 
-  @Column('uuid')
-  vendor_id: string;
+  @Column({ type: 'varchar', length: 36, unique: true })
+  public_id: string;
+
+  @Column()
+  vendor_id: number;
 
   @Column({ length: 255 })
   name: string;
@@ -28,6 +44,14 @@ export class Farmer {
 
   @CreateDateColumn()
   created_at: Date;
+
+  @UpdateDateColumn()
+  updated_at: Date;
+
+  @BeforeInsert()
+  setPublicId() {
+    this.public_id = randomUUID();
+  }
 
   @ManyToOne(() => Vendor, (vendor) => vendor.farmers)
   @JoinColumn({ name: 'vendor_id' })

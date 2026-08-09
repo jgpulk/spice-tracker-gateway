@@ -1,15 +1,29 @@
-import { Column, CreateDateColumn, Entity, ManyToOne, JoinColumn, PrimaryGeneratedColumn } from 'typeorm';
+import { randomUUID } from 'crypto';
 import { Exclude } from 'class-transformer';
+import {
+  BeforeInsert,
+  Column,
+  CreateDateColumn,
+  Entity,
+  JoinColumn,
+  ManyToOne,
+  PrimaryGeneratedColumn,
+  UpdateDateColumn,
+} from 'typeorm';
 import { Role } from '../../../common/enums/role.enum';
 import { Vendor } from '../../vendors/entities/vendor.entity';
 
 @Entity('users')
 export class User {
-  @PrimaryGeneratedColumn('uuid')
-  id: string;
+  @Exclude()
+  @PrimaryGeneratedColumn()
+  id_user: number;
 
-  @Column('uuid', { nullable: true })
-  vendor_id: string;
+  @Column({ type: 'varchar', length: 36, unique: true })
+  public_id: string;
+
+  @Column({ type: 'int', nullable: true })
+  vendor_id: number | null;
 
   @Column({ length: 255 })
   name: string;
@@ -29,6 +43,14 @@ export class User {
 
   @CreateDateColumn()
   created_at: Date;
+
+  @UpdateDateColumn()
+  updated_at: Date;
+
+  @BeforeInsert()
+  setPublicId() {
+    this.public_id = randomUUID();
+  }
 
   @ManyToOne(() => Vendor, (vendor) => vendor.users, { nullable: true })
   @JoinColumn({ name: 'vendor_id' })

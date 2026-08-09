@@ -5,7 +5,11 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { Role } from '../../common/enums/role.enum';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { ResponseMessage } from '../../common/decorators/response-message.decorator';
 import { CreateVendorDto } from './dto/create-vendor.dto';
+import { UpdateVendorDto } from './dto/update-vendor.dto';
+import { ActivateVendorDto } from './dto/activate-vendor.dto';
 
 @ApiTags('Vendors')
 @ApiBearerAuth()
@@ -16,29 +20,49 @@ export class VendorsController {
 
   @Roles(Role.SUPER_ADMIN)
   @Get()
-  @ApiOperation({ summary: 'List all vendor shops (Super Admin only)' })
+  @ResponseMessage('Vendors fetched successfully')
+  @ApiOperation({
+    summary: '✅ Verified — List all vendor shops with subscription history (Super Admin only)',
+  })
   findAll() {
     return this.vendorsService.findAll();
   }
 
   @Roles(Role.SUPER_ADMIN)
   @Post()
-  @ApiOperation({ summary: 'Create a new vendor shop (Super Admin only)' })
-  create(@Body() body: CreateVendorDto) {
-    return this.vendorsService.create(body);
+  @ResponseMessage('Vendor onboarded successfully')
+  @ApiOperation({
+    summary:
+      '✅ Verified — Onboard a new vendor — starts a 30-day trial automatically (Super Admin only)',
+  })
+  async create(@Body() body: CreateVendorDto, @CurrentUser() user: any) {
+    await this.vendorsService.create(body, user.id_user);
   }
 
   @Roles(Role.SUPER_ADMIN)
   @Get(':id')
-  @ApiOperation({ summary: 'Get a vendor shop by ID' })
+  @ResponseMessage('Vendor fetched successfully')
+  @ApiOperation({ summary: '✅ Verified — Get a vendor with full subscription history (Super Admin only)' })
   findOne(@Param('id') id: string) {
     return this.vendorsService.findOne(id);
   }
 
   @Roles(Role.SUPER_ADMIN)
   @Patch(':id')
-  @ApiOperation({ summary: 'Update a vendor shop' })
-  update(@Param('id') id: string, @Body() body: CreateVendorDto) {
+  @ResponseMessage('Vendor updated successfully')
+  @ApiOperation({ summary: '✅ Verified — Update vendor details (Super Admin only)' })
+  update(@Param('id') id: string, @Body() body: UpdateVendorDto) {
     return this.vendorsService.update(id, body);
+  }
+
+  @Roles(Role.SUPER_ADMIN)
+  @Patch(':id/activate')
+  @ResponseMessage('Vendor activated successfully')
+  @ApiOperation({
+    summary:
+      '✅ Verified — Activate a vendor onto a paid plan (works for TRIAL → ACTIVE and SUSPENDED → ACTIVE). Super Admin only.',
+  })
+  async activate(@Param('id') id: string, @Body() body: ActivateVendorDto) {
+    await this.vendorsService.activateVendor(id, body.plan_public_id);
   }
 }

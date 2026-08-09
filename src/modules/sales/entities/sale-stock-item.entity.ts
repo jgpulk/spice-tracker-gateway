@@ -4,8 +4,8 @@ import { GradedStock } from '../../graded-stock/entities/graded-stock.entity';
 
 @Entity('sale_stock_items')
 export class SaleStockItem {
-  @PrimaryGeneratedColumn('uuid')
-  id: string;
+  @PrimaryGeneratedColumn()
+  id_sale_stock_item: number;
 
   @Column({ type: 'decimal', precision: 10, scale: 3 })
   weight_kg: number;

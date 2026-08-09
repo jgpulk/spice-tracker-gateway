@@ -6,6 +6,7 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { Role } from '../../common/enums/role.enum';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { ResponseMessage } from '../../common/decorators/response-message.decorator';
 import { CreateFarmerDto } from './dto/create-farmer.dto';
 
 @ApiTags('Farmers')
@@ -17,24 +18,28 @@ export class FarmersController {
   constructor(private readonly farmersService: FarmersService) {}
 
   @Get()
+  @ResponseMessage('Farmers fetched successfully')
   @ApiOperation({ summary: 'List all farmers for this vendor' })
   findAll(@CurrentUser() user: any) {
     return this.farmersService.findAllByVendor(user.vendor_id);
   }
 
   @Post()
+  @ResponseMessage('Farmer created successfully')
   @ApiOperation({ summary: 'Add a new farmer (raw supplier)' })
   create(@Body() body: CreateFarmerDto, @CurrentUser() user: any) {
     return this.farmersService.create({ ...body, vendor_id: user.vendor_id });
   }
 
   @Get(':id')
-  @ApiOperation({ summary: 'Get a farmer by ID' })
+  @ResponseMessage('Farmer fetched successfully')
+  @ApiOperation({ summary: 'Get a farmer by public ID' })
   findOne(@Param('id') id: string, @CurrentUser() user: any) {
     return this.farmersService.findOne(id, user.vendor_id);
   }
 
   @Patch(':id')
+  @ResponseMessage('Farmer updated successfully')
   @ApiOperation({ summary: 'Update a farmer' })
   update(@Param('id') id: string, @Body() body: CreateFarmerDto, @CurrentUser() user: any) {
     return this.farmersService.update(id, user.vendor_id, body);

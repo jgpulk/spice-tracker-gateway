@@ -2,14 +2,14 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsArray, IsOptional, IsString, IsUUID } from 'class-validator';
 
 export class CreateDirectRawSaleDto {
-  @ApiProperty({ example: 'uuid-of-client' })
+  @ApiProperty({ example: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890', description: 'public_id of the client' })
   @IsUUID()
-  client_id: string;
+  client_public_id: string;
 
-  @ApiProperty({ example: ['uuid-batch-1', 'uuid-batch-2'], type: [String] })
+  @ApiProperty({ example: ['a1b2c3d4-...', 'e5f6a7b8-...'], type: [String] })
   @IsArray()
   @IsUUID('all', { each: true })
-  batch_ids: string[];
+  batch_public_ids: string[];
 
   @ApiPropertyOptional({ example: 'Urgent sale' })
   @IsOptional()

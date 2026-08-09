@@ -6,6 +6,7 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { Role } from '../../common/enums/role.enum';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { ResponseMessage } from '../../common/decorators/response-message.decorator';
 import { CreateStockBatchDto } from './dto/create-stock-batch.dto';
 
 @ApiTags('Stock Batches')
@@ -17,19 +18,22 @@ export class StockBatchesController {
   constructor(private readonly stockBatchesService: StockBatchesService) {}
 
   @Get()
+  @ResponseMessage('Stock batches fetched successfully')
   @ApiOperation({ summary: 'List all stock batches for this vendor' })
   findAll(@CurrentUser() user: any) {
     return this.stockBatchesService.findAllByVendor(user.vendor_id);
   }
 
   @Post()
+  @ResponseMessage('Stock batch created successfully')
   @ApiOperation({ summary: 'Log a new incoming batch from a farmer (status: RECEIVED)' })
   create(@Body() body: CreateStockBatchDto, @CurrentUser() user: any) {
     return this.stockBatchesService.create({ ...body, vendor_id: user.vendor_id });
   }
 
   @Get(':id')
-  @ApiOperation({ summary: 'Get a stock batch by ID' })
+  @ResponseMessage('Stock batch fetched successfully')
+  @ApiOperation({ summary: 'Get a stock batch by public ID' })
   findOne(@Param('id') id: string, @CurrentUser() user: any) {
     return this.stockBatchesService.findOne(id, user.vendor_id);
   }

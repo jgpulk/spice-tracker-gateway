@@ -1,4 +1,15 @@
-import { Column, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
+import { randomUUID } from 'crypto';
+import { Exclude } from 'class-transformer';
+import {
+  BeforeInsert,
+  Column,
+  CreateDateColumn,
+  Entity,
+  JoinColumn,
+  ManyToOne,
+  PrimaryGeneratedColumn,
+  UpdateDateColumn,
+} from 'typeorm';
 import { Vendor } from '../../vendors/entities/vendor.entity';
 import { Farmer } from '../../farmers/entities/farmer.entity';
 import { StockBatch } from '../../stock-batches/entities/stock-batch.entity';
@@ -10,17 +21,21 @@ export enum PayoutStatus {
 
 @Entity('farmer_payouts')
 export class FarmerPayout {
-  @PrimaryGeneratedColumn('uuid')
-  id: string;
+  @Exclude()
+  @PrimaryGeneratedColumn()
+  id_farmer_payout: number;
 
-  @Column('uuid')
-  vendor_id: string;
+  @Column({ type: 'varchar', length: 36, unique: true })
+  public_id: string;
 
-  @Column('uuid')
-  farmer_id: string;
+  @Column()
+  vendor_id: number;
 
-  @Column('uuid')
-  batch_id: string;
+  @Column()
+  farmer_id: number;
+
+  @Column()
+  batch_id: number;
 
   @Column({ type: 'decimal', precision: 12, scale: 2 })
   amount: number;
@@ -33,6 +48,17 @@ export class FarmerPayout {
 
   @Column({ type: 'timestamp', nullable: true })
   paid_at: Date;
+
+  @CreateDateColumn()
+  created_at: Date;
+
+  @UpdateDateColumn()
+  updated_at: Date;
+
+  @BeforeInsert()
+  setPublicId() {
+    this.public_id = randomUUID();
+  }
 
   @ManyToOne(() => Vendor, (vendor) => vendor.farmer_payouts)
   @JoinColumn({ name: 'vendor_id' })

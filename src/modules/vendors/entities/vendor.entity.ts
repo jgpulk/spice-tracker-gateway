@@ -1,4 +1,16 @@
-import { Column, CreateDateColumn, Entity, OneToMany, OneToOne, PrimaryGeneratedColumn } from 'typeorm';
+import { randomUUID } from 'crypto';
+import { Exclude } from 'class-transformer';
+import {
+  BeforeInsert,
+  Column,
+  CreateDateColumn,
+  Entity,
+  JoinColumn,
+  ManyToOne,
+  OneToMany,
+  PrimaryGeneratedColumn,
+  UpdateDateColumn,
+} from 'typeorm';
 import { VendorSubscription } from './vendor-subscription.entity';
 import { User } from '../../users/entities/user.entity';
 import { Farmer } from '../../farmers/entities/farmer.entity';
@@ -14,10 +26,20 @@ export enum VendorStatus {
   TRIAL = 'TRIAL',
 }
 
+export enum OnboardingSource {
+  SUPER_ADMIN = 'SUPER_ADMIN',
+  SELF = 'SELF',
+  REFERRAL = 'REFERRAL',
+}
+
 @Entity('vendors')
 export class Vendor {
-  @PrimaryGeneratedColumn('uuid')
-  id: string;
+  @Exclude()
+  @PrimaryGeneratedColumn()
+  id_vendor: number;
+
+  @Column({ type: 'varchar', length: 36, unique: true })
+  public_id: string;
 
   @Column({ length: 255 })
   name: string;
@@ -25,14 +47,68 @@ export class Vendor {
   @Column({ length: 100, unique: true })
   subdomain: string;
 
+  @Column({ length: 255, unique: true })
+  email: string;
+
+  @Column({ length: 20, unique: true })
+  phone: string;
+
+  @Column({ type: 'text' })
+  address: string;
+
+  @Column({ length: 100 })
+  city: string;
+
+  @Column({ length: 100 })
+  state: string;
+
+  @Column({ length: 100, default: 'India' })
+  country: string;
+
+  @Column({ length: 20 })
+  pincode: string;
+
+  @Column({ type: 'varchar', length: 255, nullable: true, unique: true })
+  business_reg_no: string | null;
+
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  business_type: string | null;
+
   @Column({ type: 'enum', enum: VendorStatus, default: VendorStatus.TRIAL })
   status: VendorStatus;
+
+  @Column({ type: 'enum', enum: OnboardingSource, default: OnboardingSource.SUPER_ADMIN })
+  onboarding_source: OnboardingSource;
+
+  @Exclude()
+  @Column({ type: 'int', nullable: true })
+  onboarded_by_user_id: number | null;
+
+  @ManyToOne(() => User, { nullable: true, eager: false })
+  @JoinColumn({ name: 'onboarded_by_user_id' })
+  onboarded_by: User | null;
+
+  @Exclude()
+  @Column({ type: 'int', nullable: true })
+  referred_by_vendor_id: number | null;
+
+  @ManyToOne(() => Vendor, { nullable: true, eager: false })
+  @JoinColumn({ name: 'referred_by_vendor_id' })
+  referred_by: Vendor | null;
 
   @CreateDateColumn()
   created_at: Date;
 
-  @OneToOne(() => VendorSubscription, (sub) => sub.vendor)
-  subscription: VendorSubscription;
+  @UpdateDateColumn()
+  updated_at: Date;
+
+  @BeforeInsert()
+  setPublicId() {
+    this.public_id = randomUUID();
+  }
+
+  @OneToMany(() => VendorSubscription, (sub) => sub.vendor)
+  subscriptions: VendorSubscription[];
 
   @OneToMany(() => User, (user) => user.vendor)
   users: User[];

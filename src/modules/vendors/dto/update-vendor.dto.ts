@@ -1,0 +1,81 @@
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsNotEmpty, IsOptional, IsString, Matches, MaxLength, MinLength } from 'class-validator';
+import { Transform } from 'class-transformer';
+
+export class UpdateVendorDto {
+  // --- Shop identity ---
+  @ApiProperty({ example: 'Green Cardamom Shop' })
+  @IsString()
+  @IsNotEmpty()
+  @MinLength(2)
+  @MaxLength(255)
+  @Transform(({ value }) => value?.trim())
+  name: string;
+
+  @ApiProperty({ example: 'green-cardamom', description: 'Unique URL-safe subdomain (lowercase letters, numbers, hyphens only)' })
+  @IsString()
+  @IsNotEmpty()
+  @MinLength(2)
+  @MaxLength(100)
+  @Matches(/^[a-z0-9-]+$/, {
+    message: 'subdomain must contain only lowercase letters, numbers, and hyphens',
+  })
+  subdomain: string;
+
+  // --- Address ---
+  @ApiProperty({ example: '42, Market Street, Idukki' })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(500)
+  @Transform(({ value }) => value?.trim())
+  address: string;
+
+  @ApiProperty({ example: 'Idukki' })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(100)
+  @Matches(/^[a-zA-Z\s\-'.]+$/, { message: 'city must contain only letters, spaces, hyphens, or apostrophes' })
+  @Transform(({ value }) => value?.trim())
+  city: string;
+
+  @ApiProperty({ example: 'Kerala' })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(100)
+  @Matches(/^[a-zA-Z\s\-'.]+$/, { message: 'state must contain only letters, spaces, hyphens, or apostrophes' })
+  @Transform(({ value }) => value?.trim())
+  state: string;
+
+  @ApiPropertyOptional({ example: 'India', default: 'India' })
+  @IsString()
+  @IsOptional()
+  @MaxLength(100)
+  @Matches(/^[a-zA-Z\s\-'.]+$/, { message: 'country must contain only letters, spaces, hyphens, or apostrophes' })
+  @Transform(({ value }) => value?.trim())
+  country?: string;
+
+  @ApiProperty({ example: '685602', description: '4–10 digit postal code' })
+  @Matches(/^[0-9]{4,10}$/, { message: 'pincode must contain only digits (4–10 digits)' })
+  pincode: string;
+
+  // --- Business details ---
+  @ApiProperty({
+    example: '29ABCDE1234F1Z5',
+    description: 'GST or business registration number (alphanumeric, 3–50 chars)',
+  })
+  @Matches(/^[A-Za-z0-9\-/]{3,50}$/, {
+    message: 'business_reg_no must be alphanumeric (letters, digits, hyphens, slashes)',
+  })
+  @Transform(({ value }) => value?.trim().toUpperCase())
+  business_reg_no: string;
+
+  @ApiProperty({
+    example: 'Sole Proprietorship',
+    description: 'e.g. Sole Proprietorship, Partnership, Private Limited',
+  })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(255)
+  @Transform(({ value }) => value?.trim())
+  business_type: string;
+}
