@@ -56,8 +56,57 @@ export class VendorsService {
   async findOne(publicId: string) {
     const vendor = await this.vendorRepo.findOne({
       where: { public_id: publicId },
-      relations: ['subscriptions', 'subscriptions.plan'],
+      relations: ['subscriptions', 'subscriptions.plan', 'onboarded_by', 'referred_by'],
+      // start_date is DATE-precision, so a same-day activation (the common
+      // case — trial + immediate upgrade) ties with the trial's start_date.
+      // created_at (full timestamp) breaks the tie so the current/active
+      // subscription — always the most recently created on a tie — wins.
+      order: { subscriptions: { start_date: 'DESC', created_at: 'DESC' } },
     });
+    if (!vendor) throw new NotFoundException('Vendor not found');
+
+    return {
+      public_id: vendor.public_id,
+      name: vendor.name,
+      subdomain: vendor.subdomain,
+      email: vendor.email,
+      phone: vendor.phone,
+      address: vendor.address,
+      city: vendor.city,
+      state: vendor.state,
+      country: vendor.country,
+      pincode: vendor.pincode,
+      business_reg_no: vendor.business_reg_no,
+      business_type: vendor.business_type,
+      status: vendor.status,
+      onboarding_source: vendor.onboarding_source,
+      onboarded_by: vendor.onboarded_by ? { name: vendor.onboarded_by.name } : null,
+      referred_by: vendor.referred_by ? { name: vendor.referred_by.name } : null,
+      created_at: vendor.created_at,
+      updated_at: vendor.updated_at,
+      // Sorted newest-activation-first by the query's `order` above; the
+      // per-subscription shape here also hides internal PKs (plan_id,
+      // vendor_id, id_vendor_subscription) the same way findAll() does.
+      subscriptions: vendor.subscriptions.map((s) => ({
+        status: s.status,
+        is_trial: s.is_trial,
+        start_date: s.start_date,
+        end_date: s.end_date,
+        plan: s.plan
+          ? {
+              public_id: s.plan.public_id,
+              name: s.plan.name,
+              plan_type: s.plan.plan_type,
+              billing_cycle: s.plan.billing_cycle,
+              monthly_fee: s.plan.monthly_fee,
+            }
+          : null,
+      })),
+    };
+  }
+
+  private async getVendorOrFail(publicId: string): Promise<Vendor> {
+    const vendor = await this.vendorRepo.findOneBy({ public_id: publicId });
     if (!vendor) throw new NotFoundException('Vendor not found');
     return vendor;
   }
@@ -162,7 +211,7 @@ export class VendorsService {
   }
 
   async update(publicId: string, dto: CreateVendorDto) {
-    const vendor = await this.findOne(publicId);
+    const vendor = await this.getVendorOrFail(publicId);
     const source = dto.onboarding_source ?? vendor.onboarding_source;
     this.validateReferralSource(source, dto.referred_by_vendor_public_id);
 
@@ -193,7 +242,7 @@ export class VendorsService {
   }
 
   async activateVendor(publicId: string, planPublicId: string) {
-    const vendor = await this.findOne(publicId);
+    const vendor = await this.getVendorOrFail(publicId);
     const plan = await this.plansService.findOne(planPublicId);
 
     await this.subscriptionRepo.update(
