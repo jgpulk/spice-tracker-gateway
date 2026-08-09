@@ -19,6 +19,7 @@ const DEFAULT_PLANS = [
     monthly_fee: 299,
     description: 'Basic plan — up to 200 batches/month, 2 staff accounts',
     is_active: true,
+    is_default_trial: true,
   },
   {
     name: 'Starter Annual',

@@ -59,6 +59,17 @@ describe('Vendors — GET /api/v1/vendors (list all, e2e)', () => {
   const createVendor = (overrides: Record<string, unknown> = {}) =>
     asAdmin(request(app.getHttpServer()).post('/api/v1/vendors')).send(validVendorPayload(overrides));
 
+  // POST /vendors no longer returns the created vendor (just a success
+  // message), so any test that needs the created vendor's data has to look
+  // it up afterward. This resolves to a GET /vendors/:id Response, so
+  // `.body.data` still works exactly like it used to off the create response.
+  const onboardVendor = async (overrides: Record<string, unknown> = {}) => {
+    const payload = validVendorPayload(overrides);
+    await asAdmin(request(app.getHttpServer()).post('/api/v1/vendors')).send(payload).expect(201);
+    const row = await vendorRepo.findOneBy({ subdomain: payload.subdomain });
+    return asAdmin(request(app.getHttpServer()).get(`/api/v1/vendors/${row!.public_id}`)).expect(200);
+  };
+
   const activate = (publicId: string, planPublicId: string) =>
     asAdmin(request(app.getHttpServer()).patch(`/api/v1/vendors/${publicId}/activate`)).send({
       plan_public_id: planPublicId,
@@ -203,7 +214,7 @@ describe('Vendors — GET /api/v1/vendors (list all, e2e)', () => {
 
   describe('onboarded_by / referred_by', () => {
     it('shows onboarded_by as {name} for a directly SUPER_ADMIN-onboarded vendor, referred_by null', async () => {
-      const vendor = await createVendor().expect(201);
+      const vendor = await onboardVendor();
       const list = await getList().expect(200);
 
       const item = findInList(list.body.data, vendor.body.data.public_id);
@@ -212,11 +223,11 @@ describe('Vendors — GET /api/v1/vendors (list all, e2e)', () => {
     });
 
     it('shows referred_by as {name} for a REFERRAL-onboarded vendor, onboarded_by null', async () => {
-      const referrer = await createVendor().expect(201);
-      const referred = await createVendor({
+      const referrer = await onboardVendor();
+      const referred = await onboardVendor({
         onboarding_source: OnboardingSource.REFERRAL,
         referred_by_vendor_public_id: referrer.body.data.public_id,
-      }).expect(201);
+      });
 
       const list = await getList().expect(200);
       const item = findInList(list.body.data, referred.body.data.public_id);
@@ -230,7 +241,7 @@ describe('Vendors — GET /api/v1/vendors (list all, e2e)', () => {
 
   describe('subscription (single active subscription, not the full history)', () => {
     it('shows a fresh TRIAL vendor with is_trial true and no plan', async () => {
-      const vendor = await createVendor().expect(201);
+      const vendor = await onboardVendor();
       const list = await getList().expect(200);
       const item = findInList(list.body.data, vendor.body.data.public_id);
 
@@ -243,7 +254,7 @@ describe('Vendors — GET /api/v1/vendors (list all, e2e)', () => {
     });
 
     it('shows an activated vendor with is_trial false and the paid plan', async () => {
-      const vendor = await createVendor().expect(201);
+      const vendor = await onboardVendor();
       await activate(vendor.body.data.public_id, starterPlanPublicId).expect(200);
 
       const list = await getList().expect(200);
@@ -257,7 +268,7 @@ describe('Vendors — GET /api/v1/vendors (list all, e2e)', () => {
     });
 
     it('shows only the current plan after re-activating onto a different one', async () => {
-      const vendor = await createVendor().expect(201);
+      const vendor = await onboardVendor();
       await activate(vendor.body.data.public_id, starterPlanPublicId).expect(200);
       await activate(vendor.body.data.public_id, proPlanPublicId).expect(200);
 
@@ -277,12 +288,41 @@ describe('Vendors — GET /api/v1/vendors (list all, e2e)', () => {
 
       expect(item.subscription).toBeNull();
     });
+
+    it('shows the configured default trial plan on a fresh trial vendor', async () => {
+      const defaultPlan = await planRepo.save(
+        planRepo.create({
+          name: 'List View Default Trial Plan',
+          plan_type: PlanType.ENTERPRISE,
+          billing_cycle: BillingCycle.MONTHLY,
+          monthly_fee: 0,
+          is_active: true,
+          is_default_trial: true,
+        }),
+      );
+
+      try {
+        const vendor = await onboardVendor();
+        const list = await getList().expect(200);
+        const item = findInList(list.body.data, vendor.body.data.public_id);
+
+        expect(item.subscription.is_trial).toBe(true);
+        expect(item.subscription.plan).toEqual({
+          name: 'List View Default Trial Plan',
+          plan_type: PlanType.ENTERPRISE,
+        });
+      } finally {
+        // Don't let this leak into other tests in this file that assume no
+        // default trial plan is configured.
+        await planRepo.update(defaultPlan.id_subscription_plan, { is_default_trial: false });
+      }
+    });
   });
 
   describe('completeness and ordering', () => {
     it('includes vendors of every status (TRIAL, ACTIVE, SUSPENDED) without hiding any', async () => {
-      const trialVendor = await createVendor().expect(201);
-      const activeVendor = await createVendor().expect(201);
+      const trialVendor = await onboardVendor();
+      const activeVendor = await onboardVendor();
       await activate(activeVendor.body.data.public_id, starterPlanPublicId).expect(200);
       const suspendedVendor = await vendorRepo.save(
         vendorRepo.create({ ...validVendorPayload(), status: VendorStatus.SUSPENDED }),
