@@ -9,6 +9,7 @@ import { Role } from '../../common/enums/role.enum';
 import { BillingCycle } from '../subscription-plans/entities/subscription-plan.entity';
 import { SubscriptionPlansService } from '../subscription-plans/subscription-plans.service';
 import { CreateVendorDto } from './dto/create-vendor.dto';
+import { UpdateVendorDto } from './dto/update-vendor.dto';
 
 @Injectable()
 export class VendorsService {
@@ -210,23 +211,22 @@ export class VendorsService {
     return this.findOne(saved.public_id);
   }
 
-  async update(publicId: string, dto: CreateVendorDto) {
+  async update(publicId: string, dto: UpdateVendorDto) {
     const vendor = await this.getVendorOrFail(publicId);
-    const source = dto.onboarding_source ?? vendor.onboarding_source;
-    this.validateReferralSource(source, dto.referred_by_vendor_public_id);
 
-    const referredByVendorId =
-      source === OnboardingSource.REFERRAL
-        ? await this.resolveReferrerId(dto.referred_by_vendor_public_id)
-        : null;
+    const existing = await this.vendorRepo.findOneBy({ subdomain: dto.subdomain });
+    if (existing && existing.public_id !== publicId) {
+      throw new ConflictException('A vendor with this subdomain already exists');
+    }
 
-    await this.checkDuplicates(dto, publicId);
+    const existingReg = await this.vendorRepo.findOneBy({ business_reg_no: dto.business_reg_no });
+    if (existingReg && existingReg.public_id !== publicId) {
+      throw new ConflictException('A vendor with this business_reg_no already exists');
+    }
 
     await this.vendorRepo.update(vendor.id_vendor, {
       name: dto.name,
       subdomain: dto.subdomain,
-      email: dto.email,
-      phone: dto.phone,
       address: dto.address,
       city: dto.city,
       state: dto.state,
@@ -234,8 +234,6 @@ export class VendorsService {
       pincode: dto.pincode,
       business_reg_no: dto.business_reg_no,
       business_type: dto.business_type,
-      onboarding_source: source,
-      referred_by_vendor_id: referredByVendorId,
     });
 
     return this.findOne(publicId);

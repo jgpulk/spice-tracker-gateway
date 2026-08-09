@@ -8,6 +8,7 @@ import { Role } from '../../common/enums/role.enum';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { ResponseMessage } from '../../common/decorators/response-message.decorator';
 import { CreateVendorDto } from './dto/create-vendor.dto';
+import { UpdateVendorDto } from './dto/update-vendor.dto';
 import { ActivateVendorDto } from './dto/activate-vendor.dto';
 
 @ApiTags('Vendors')
@@ -50,7 +51,7 @@ export class VendorsController {
   @Patch(':id')
   @ResponseMessage('Vendor updated successfully')
   @ApiOperation({ summary: 'Update vendor details (Super Admin only)' })
-  update(@Param('id') id: string, @Body() body: CreateVendorDto) {
+  update(@Param('id') id: string, @Body() body: UpdateVendorDto) {
     return this.vendorsService.update(id, body);
   }
 
