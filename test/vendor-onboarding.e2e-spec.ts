@@ -219,7 +219,7 @@ describe('Vendors — /api/v1/vendors (e2e)', () => {
       const trialSub = vendor.subscriptions[0];
       expect(trialSub.is_trial).toBe(true);
       expect(trialSub.status).toBe(SubscriptionStatus.ACTIVE);
-      expect(trialSub.plan_id).toBeNull();
+      expect(trialSub.plan).toBeNull();
 
       const days =
         (new Date(trialSub.end_date).getTime() - new Date(trialSub.start_date).getTime()) / 86_400_000;
@@ -393,6 +393,66 @@ describe('Vendors — /api/v1/vendors (e2e)', () => {
         request(app.getHttpServer()).get('/api/v1/vendors/00000000-0000-0000-0000-000000000000'),
       ).expect(404);
     });
+
+    it('includes onboarded_by as {name} for a directly onboarded vendor, referred_by null', async () => {
+      const vendor = await onboardVendor();
+      expect(vendor.body.data.onboarded_by).toEqual({ name: 'E2E Super Admin' });
+      expect(vendor.body.data.referred_by).toBeNull();
+    });
+
+    it('includes referred_by as {name} for a REFERRAL-onboarded vendor, onboarded_by null', async () => {
+      const referrer = await onboardVendor();
+      const referred = await onboardVendor({
+        onboarding_source: OnboardingSource.REFERRAL,
+        referred_by_vendor_public_id: referrer.body.data.public_id,
+      });
+
+      expect(referred.body.data.onboarded_by).toBeNull();
+      expect(referred.body.data.referred_by).toEqual({ name: referrer.body.data.name });
+      // Only the name should be exposed — no public_id/email/other referrer fields.
+      expect(Object.keys(referred.body.data.referred_by)).toEqual(['name']);
+    });
+
+    it('sorts subscriptions by activation date (start_date) descending — newest first', async () => {
+      const vendor = await onboardVendor();
+      const row = await vendorRepo.findOneBy({ public_id: vendor.body.data.public_id });
+
+      // start_date is DATE-precision, so subscriptions created moments apart
+      // within this test would otherwise tie — use explicit, unambiguous dates.
+      await subscriptionRepo.save(
+        subscriptionRepo.create({
+          vendor_id: row!.id_vendor,
+          plan_id: null,
+          is_trial: false,
+          status: SubscriptionStatus.EXPIRED,
+          start_date: new Date('2020-01-01'),
+          end_date: new Date('2020-02-01'),
+        }),
+      );
+      await subscriptionRepo.save(
+        subscriptionRepo.create({
+          vendor_id: row!.id_vendor,
+          plan_id: null,
+          is_trial: false,
+          status: SubscriptionStatus.EXPIRED,
+          start_date: new Date('2020-06-01'),
+          end_date: new Date('2020-07-01'),
+        }),
+      );
+
+      const fetched = await asAdmin(
+        request(app.getHttpServer()).get(`/api/v1/vendors/${vendor.body.data.public_id}`),
+      ).expect(200);
+
+      const dates = fetched.body.data.subscriptions.map((s: any) => new Date(s.start_date).getTime());
+      expect(dates.length).toBeGreaterThanOrEqual(3); // trial + the two synthetic ones above
+
+      for (let i = 0; i < dates.length - 1; i++) {
+        expect(dates[i]).toBeGreaterThanOrEqual(dates[i + 1]);
+      }
+      // Confirm it's a real descending sort, not an accidental all-tied result.
+      expect(dates[0]).toBeGreaterThan(dates[dates.length - 1]);
+    });
   });
 
   describe('PATCH /vendors/:id', () => {
@@ -556,7 +616,12 @@ describe('Vendors — /api/v1/vendors (e2e)', () => {
       const updated = fetched.body.data;
       expect(updated.status).toBe(VendorStatus.ACTIVE);
 
-      const active = updated.subscriptions.find((s: any) => s.status === SubscriptionStatus.ACTIVE);
+      // The new paid subscription and the expired trial both have today as
+      // their start_date (DATE-precision — same-day activation is the norm),
+      // so this also proves the created_at tiebreaker actually works: the
+      // active one must be first, not just present somewhere in the array.
+      const active = updated.subscriptions[0];
+      expect(active.status).toBe(SubscriptionStatus.ACTIVE);
       expect(active.is_trial).toBe(false);
       expect(active.plan.public_id).toBe(starterPlanPublicId);
 
@@ -606,6 +671,11 @@ describe('Vendors — /api/v1/vendors (e2e)', () => {
       expect(activeSubs).toHaveLength(1);
       expect(activeSubs[0].plan.public_id).toBe(proPlanPublicId);
 
+      // Three subscriptions (trial, starter, pro) all tie on start_date today
+      // — the current/pro one must still come first via the created_at tiebreaker.
+      expect(updated.subscriptions[0].plan.public_id).toBe(proPlanPublicId);
+      expect(updated.subscriptions[0].status).toBe(SubscriptionStatus.ACTIVE);
+
       const starterSub = updated.subscriptions.find((s: any) => s.plan?.public_id === starterPlanPublicId);
       expect(starterSub.status).toBe(SubscriptionStatus.EXPIRED);
     });
@@ -630,7 +700,6 @@ describe('Vendors — /api/v1/vendors (e2e)', () => {
       const vendor = await onboardVendor();
       const trialSub = vendor.body.data.subscriptions.find((s: any) => s.is_trial);
 
-      expect(trialSub.plan_id).toBeNull();
       expect(trialSub.plan).toBeNull();
     });
 
