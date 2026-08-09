@@ -2,11 +2,10 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsEmail,
   IsEnum,
-  IsInt,
   IsNotEmpty,
   IsOptional,
-  IsPositive,
   IsString,
+  IsUUID,
   Matches,
   MaxLength,
   MinLength,
@@ -112,11 +111,10 @@ export class CreateVendorDto {
   onboarding_source?: OnboardingSource;
 
   @ApiPropertyOptional({
-    example: 3,
-    description: 'id_vendor of the referring vendor — only valid when onboarding_source is REFERRAL',
+    example: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+    description: 'public_id of the referring vendor — only valid when onboarding_source is REFERRAL',
   })
-  @IsInt()
-  @IsPositive()
+  @IsUUID()
   @IsOptional()
-  referred_by_vendor_id?: number;
+  referred_by_vendor_public_id?: string;
 }

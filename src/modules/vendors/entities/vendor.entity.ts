@@ -78,9 +78,11 @@ export class Vendor {
   @Column({ type: 'enum', enum: OnboardingSource, default: OnboardingSource.SUPER_ADMIN })
   onboarding_source: OnboardingSource;
 
+  @Exclude()
   @Column({ type: 'int', nullable: true })
   onboarded_by_user_id: number | null;
 
+  @Exclude()
   @Column({ type: 'int', nullable: true })
   referred_by_vendor_id: number | null;
 

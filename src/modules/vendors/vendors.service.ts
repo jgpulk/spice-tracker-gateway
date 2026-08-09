@@ -50,15 +50,32 @@ export class VendorsService {
     }
   }
 
+  private validateReferralSource(source: OnboardingSource, referredByVendorPublicId?: string) {
+    if (source === OnboardingSource.REFERRAL && !referredByVendorPublicId) {
+      throw new BadRequestException(
+        'referred_by_vendor_public_id is required when onboarding_source is REFERRAL',
+      );
+    }
+    if (source !== OnboardingSource.REFERRAL && referredByVendorPublicId) {
+      throw new BadRequestException(
+        'referred_by_vendor_public_id can only be set when onboarding_source is REFERRAL',
+      );
+    }
+  }
+
+  // An unresolvable referral is not fatal — fall back to no referrer rather
+  // than rejecting the whole request over a stale/bad referral link.
+  private async resolveReferrerId(referredByVendorPublicId?: string): Promise<number | null> {
+    if (!referredByVendorPublicId) return null;
+    const referrer = await this.vendorRepo.findOneBy({ public_id: referredByVendorPublicId });
+    return referrer?.id_vendor ?? null;
+  }
+
   async create(dto: CreateVendorDto, onboardedByUserId: number) {
     const source = dto.onboarding_source ?? OnboardingSource.SUPER_ADMIN;
+    this.validateReferralSource(source, dto.referred_by_vendor_public_id);
 
-    if (source === OnboardingSource.REFERRAL && !dto.referred_by_vendor_id) {
-      throw new BadRequestException('referred_by_vendor_id is required when onboarding_source is REFERRAL');
-    }
-    if (source !== OnboardingSource.REFERRAL && dto.referred_by_vendor_id) {
-      throw new BadRequestException('referred_by_vendor_id can only be set when onboarding_source is REFERRAL');
-    }
+    const referredByVendorId = await this.resolveReferrerId(dto.referred_by_vendor_public_id);
 
     await this.checkDuplicates(dto);
     const vendor = this.vendorRepo.create({
@@ -76,7 +93,7 @@ export class VendorsService {
       status: VendorStatus.TRIAL,
       onboarding_source: source,
       onboarded_by_user_id: source === OnboardingSource.SUPER_ADMIN ? onboardedByUserId : null,
-      referred_by_vendor_id: dto.referred_by_vendor_id ?? null,
+      referred_by_vendor_id: referredByVendorId,
     });
 
     const saved = await this.vendorRepo.save(vendor);
@@ -99,9 +116,34 @@ export class VendorsService {
     return this.findOne(saved.public_id);
   }
 
-  async update(publicId: string, data: Partial<Vendor>) {
+  async update(publicId: string, dto: CreateVendorDto) {
     const vendor = await this.findOne(publicId);
-    await this.vendorRepo.update(vendor.id_vendor, data);
+    const source = dto.onboarding_source ?? vendor.onboarding_source;
+    this.validateReferralSource(source, dto.referred_by_vendor_public_id);
+
+    const referredByVendorId =
+      source === OnboardingSource.REFERRAL
+        ? await this.resolveReferrerId(dto.referred_by_vendor_public_id)
+        : null;
+
+    await this.checkDuplicates(dto, publicId);
+
+    await this.vendorRepo.update(vendor.id_vendor, {
+      name: dto.name,
+      subdomain: dto.subdomain,
+      email: dto.email,
+      phone: dto.phone,
+      address: dto.address,
+      city: dto.city,
+      state: dto.state,
+      country: dto.country ?? 'India',
+      pincode: dto.pincode,
+      business_reg_no: dto.business_reg_no ?? null,
+      business_type: dto.business_type ?? null,
+      onboarding_source: source,
+      referred_by_vendor_id: referredByVendorId,
+    });
+
     return this.findOne(publicId);
   }
 
