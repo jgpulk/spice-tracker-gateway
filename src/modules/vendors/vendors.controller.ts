@@ -41,7 +41,7 @@ export class VendorsController {
   @Roles(Role.SUPER_ADMIN)
   @Get(':id')
   @ResponseMessage('Vendor fetched successfully')
-  @ApiOperation({ summary: 'Get a vendor with full subscription history (Super Admin only)' })
+  @ApiOperation({ summary: '✅ Verified — Get a vendor with full subscription history (Super Admin only)' })
   findOne(@Param('id') id: string) {
     return this.vendorsService.findOne(id);
   }
