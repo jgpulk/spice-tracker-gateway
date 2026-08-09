@@ -1,12 +1,12 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { LessThan, Repository } from 'typeorm';
-import { Cron, CronExpression } from '@nestjs/schedule';
+import { Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import { Vendor, OnboardingSource, VendorStatus } from './entities/vendor.entity';
 import { SubscriptionStatus, VendorSubscription } from './entities/vendor-subscription.entity';
 import { User } from '../users/entities/user.entity';
 import { Role } from '../../common/enums/role.enum';
+import { BillingCycle } from '../subscription-plans/entities/subscription-plan.entity';
 import { SubscriptionPlansService } from '../subscription-plans/subscription-plans.service';
 import { CreateVendorDto } from './dto/create-vendor.dto';
 
@@ -202,6 +202,13 @@ export class VendorsService {
     );
 
     const today = new Date();
+    const endDate = new Date(today);
+    if (plan.billing_cycle === BillingCycle.MONTHLY) {
+      endDate.setMonth(endDate.getMonth() + 1);
+    } else {
+      endDate.setFullYear(endDate.getFullYear() + 1);
+    }
+
     await this.subscriptionRepo.save(
       this.subscriptionRepo.create({
         vendor_id: vendor.id_vendor,
@@ -209,37 +216,11 @@ export class VendorsService {
         is_trial: false,
         status: SubscriptionStatus.ACTIVE,
         start_date: today,
-        end_date: null,
+        end_date: endDate,
       }),
     );
 
     await this.vendorRepo.update(vendor.id_vendor, { status: VendorStatus.ACTIVE });
     return this.findOne(publicId);
-  }
-
-  @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT)
-  async expireTrials() {
-    const today = new Date();
-
-    const expiredSubs = await this.subscriptionRepo.find({
-      where: { end_date: LessThan(today), status: SubscriptionStatus.ACTIVE },
-      relations: ['vendor'],
-    });
-
-    const trialVendorIds = expiredSubs
-      .filter((sub) => sub.vendor?.status === VendorStatus.TRIAL)
-      .map((sub) => sub.vendor_id);
-
-    if (trialVendorIds.length === 0) return;
-
-    for (const vendorId of trialVendorIds) {
-      await this.subscriptionRepo.update(
-        { vendor_id: vendorId, status: SubscriptionStatus.ACTIVE },
-        { status: SubscriptionStatus.EXPIRED },
-      );
-      await this.vendorRepo.update(vendorId, { status: VendorStatus.SUSPENDED });
-    }
-
-    console.log(`[TrialExpiry] Suspended ${trialVendorIds.length} vendor(s) with expired trials.`);
   }
 }
