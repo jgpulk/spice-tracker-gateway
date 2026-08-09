@@ -83,26 +83,45 @@ export class CreateVendorDto {
   pincode: string;
 
   // --- Business details ---
-  @ApiPropertyOptional({
+  @ApiProperty({
     example: '29ABCDE1234F1Z5',
     description: 'GST or business registration number (alphanumeric, 3–50 chars)',
   })
-  @IsOptional()
   @Matches(/^[A-Za-z0-9\-/]{3,50}$/, {
     message: 'business_reg_no must be alphanumeric (letters, digits, hyphens, slashes)',
   })
   @Transform(({ value }) => value?.trim().toUpperCase())
-  business_reg_no?: string;
+  business_reg_no: string;
 
-  @ApiPropertyOptional({
+  @ApiProperty({
     example: 'Sole Proprietorship',
     description: 'e.g. Sole Proprietorship, Partnership, Private Limited',
   })
   @IsString()
-  @IsOptional()
+  @IsNotEmpty()
   @MaxLength(255)
   @Transform(({ value }) => value?.trim())
-  business_type?: string;
+  business_type: string;
+
+  // --- Owner account (used only on creation, ignored on update) ---
+  @ApiProperty({ example: 'Ravi Kumar', description: 'Name of the vendor owner' })
+  @IsString()
+  @IsNotEmpty()
+  @MinLength(2)
+  @MaxLength(255)
+  @Transform(({ value }) => value?.trim())
+  owner_name: string;
+
+  @ApiProperty({ example: 'ravi@greencardamom.com', description: 'Login email for the vendor owner account' })
+  @IsEmail({}, { message: 'owner_email must be a valid email address' })
+  @MaxLength(255)
+  @Transform(({ value }) => value?.trim().toLowerCase())
+  owner_email: string;
+
+  @ApiProperty({ example: 'Secret@123', minLength: 8, description: 'Password for the vendor owner login' })
+  @IsString()
+  @MinLength(8)
+  owner_password: string;
 
   // --- Onboarding tracking ---
   @ApiPropertyOptional({ enum: OnboardingSource, default: OnboardingSource.SUPER_ADMIN })

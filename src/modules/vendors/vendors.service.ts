@@ -2,8 +2,11 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { InjectRepository } from '@nestjs/typeorm';
 import { LessThan, Repository } from 'typeorm';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import * as bcrypt from 'bcrypt';
 import { Vendor, OnboardingSource, VendorStatus } from './entities/vendor.entity';
 import { SubscriptionStatus, VendorSubscription } from './entities/vendor-subscription.entity';
+import { User } from '../users/entities/user.entity';
+import { Role } from '../../common/enums/role.enum';
 import { SubscriptionPlansService } from '../subscription-plans/subscription-plans.service';
 import { CreateVendorDto } from './dto/create-vendor.dto';
 
@@ -14,6 +17,8 @@ export class VendorsService {
     private readonly vendorRepo: Repository<Vendor>,
     @InjectRepository(VendorSubscription)
     private readonly subscriptionRepo: Repository<VendorSubscription>,
+    @InjectRepository(User)
+    private readonly userRepo: Repository<User>,
     private readonly plansService: SubscriptionPlansService,
   ) {}
 
@@ -77,6 +82,9 @@ export class VendorsService {
 
     const referredByVendorId = await this.resolveReferrerId(dto.referred_by_vendor_public_id);
 
+    const existingOwner = await this.userRepo.findOneBy({ email: dto.owner_email });
+    if (existingOwner) throw new ConflictException('A user with this owner_email already exists');
+
     await this.checkDuplicates(dto);
     const vendor = this.vendorRepo.create({
       name: dto.name,
@@ -88,8 +96,8 @@ export class VendorsService {
       state: dto.state,
       country: dto.country ?? 'India',
       pincode: dto.pincode,
-      business_reg_no: dto.business_reg_no ?? null,
-      business_type: dto.business_type ?? null,
+      business_reg_no: dto.business_reg_no,
+      business_type: dto.business_type,
       status: VendorStatus.TRIAL,
       onboarding_source: source,
       onboarded_by_user_id: source === OnboardingSource.SUPER_ADMIN ? onboardedByUserId : null,
@@ -110,6 +118,17 @@ export class VendorsService {
         status: SubscriptionStatus.ACTIVE,
         start_date: today,
         end_date: trialEnd,
+      }),
+    );
+
+    await this.userRepo.save(
+      this.userRepo.create({
+        name: dto.owner_name,
+        email: dto.owner_email,
+        password_hash: await bcrypt.hash(dto.owner_password, 10),
+        role: Role.VENDOR_OWNER,
+        vendor_id: saved.id_vendor,
+        is_active: true,
       }),
     );
 
@@ -138,8 +157,8 @@ export class VendorsService {
       state: dto.state,
       country: dto.country ?? 'India',
       pincode: dto.pincode,
-      business_reg_no: dto.business_reg_no ?? null,
-      business_type: dto.business_type ?? null,
+      business_reg_no: dto.business_reg_no,
+      business_type: dto.business_type,
       onboarding_source: source,
       referred_by_vendor_id: referredByVendorId,
     });
