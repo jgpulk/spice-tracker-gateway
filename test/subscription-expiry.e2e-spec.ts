@@ -61,6 +61,8 @@ describe('CronService.expireSubscriptions (cron, e2e)', () => {
       }),
     );
 
+  let consoleLogSpy: jest.SpyInstance;
+
   beforeAll(async () => {
     const { app: testApp, moduleFixture } = await createTestApp();
     app = testApp;
@@ -75,9 +77,15 @@ describe('CronService.expireSubscriptions (cron, e2e)', () => {
     await subscriptionRepo.query('TRUNCATE TABLE vendor_subscriptions');
     await vendorRepo.query('TRUNCATE TABLE vendors');
     await subscriptionRepo.query('SET FOREIGN_KEY_CHECKS = 1');
+
+    // expireSubscriptions() logs on every real run — that's useful in
+    // production but just noise here, and it's easy to mistake for a test
+    // failure in the console output. Silence it for this suite only.
+    consoleLogSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
   });
 
   afterAll(async () => {
+    consoleLogSpy.mockRestore();
     await app.close();
   });
 
