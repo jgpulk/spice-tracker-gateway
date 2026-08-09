@@ -341,21 +341,8 @@ describe('Vendors — /api/v1/vendors (e2e)', () => {
     });
   });
 
-  describe('GET /vendors', () => {
-    it('rejects an unauthenticated request', () => {
-      return request(app.getHttpServer()).get('/api/v1/vendors').expect(401);
-    });
-
-    it('rejects a non-SUPER_ADMIN caller', () => {
-      return asOwner(request(app.getHttpServer()).get('/api/v1/vendors')).expect(403);
-    });
-
-    it('lists vendors for a SUPER_ADMIN caller', async () => {
-      const res = await asAdmin(request(app.getHttpServer()).get('/api/v1/vendors')).expect(200);
-      expect(Array.isArray(res.body.data)).toBe(true);
-      expect(res.body.data.length).toBeGreaterThan(0);
-    });
-  });
+  // GET /vendors (list-all) has its own dedicated suite: vendors-list.e2e-spec.ts
+  // — findAll() returns a curated summary shape, not raw entities.
 
   describe('GET /vendors/:id', () => {
     it('rejects an unauthenticated request', async () => {
