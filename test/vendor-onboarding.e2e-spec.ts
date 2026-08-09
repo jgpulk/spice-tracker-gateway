@@ -89,6 +89,16 @@ describe('Vendors — /api/v1/vendors (e2e)', () => {
     return asAdmin(request(app.getHttpServer()).get(`/api/v1/vendors/${row!.public_id}`)).expect(200);
   };
 
+  // PATCH /vendors/:id/activate no longer returns the updated vendor either
+  // (same no-data-on-write pattern as create) — same fix: activate, then
+  // fetch, and hand back the fetch's Response so `.body.data` still works.
+  const activateVendor = async (publicId: string, planPublicId: string) => {
+    await asAdmin(request(app.getHttpServer()).patch(`/api/v1/vendors/${publicId}/activate`))
+      .send({ plan_public_id: planPublicId })
+      .expect(200);
+    return asAdmin(request(app.getHttpServer()).get(`/api/v1/vendors/${publicId}`)).expect(200);
+  };
+
   beforeAll(async () => {
     const { app: testApp, moduleFixture } = await createTestApp();
     app = testApp;
@@ -527,16 +537,23 @@ describe('Vendors — /api/v1/vendors (e2e)', () => {
         .expect(404);
     });
 
-    it('activates a TRIAL vendor onto a paid plan', async () => {
+    it('returns no data payload on activation, only a success message', async () => {
       const vendor = await onboardVendor();
-
       const res = await asAdmin(
         request(app.getHttpServer()).patch(`/api/v1/vendors/${vendor.body.data.public_id}/activate`),
       )
         .send({ plan_public_id: starterPlanPublicId })
         .expect(200);
 
-      const updated = res.body.data;
+      expect(res.body).toEqual({ status: true, message: 'Vendor activated successfully' });
+      expect(res.body.data).toBeUndefined();
+    });
+
+    it('activates a TRIAL vendor onto a paid plan', async () => {
+      const vendor = await onboardVendor();
+      const fetched = await activateVendor(vendor.body.data.public_id, starterPlanPublicId);
+
+      const updated = fetched.body.data;
       expect(updated.status).toBe(VendorStatus.ACTIVE);
 
       const active = updated.subscriptions.find((s: any) => s.status === SubscriptionStatus.ACTIVE);
@@ -567,13 +584,9 @@ describe('Vendors — /api/v1/vendors (e2e)', () => {
       );
 
       const vendor = await onboardVendor();
-      const res = await asAdmin(
-        request(app.getHttpServer()).patch(`/api/v1/vendors/${vendor.body.data.public_id}/activate`),
-      )
-        .send({ plan_public_id: annualPlan.public_id })
-        .expect(200);
+      const fetched = await activateVendor(vendor.body.data.public_id, annualPlan.public_id);
 
-      const active = res.body.data.subscriptions.find((s: any) => s.status === SubscriptionStatus.ACTIVE);
+      const active = fetched.body.data.subscriptions.find((s: any) => s.status === SubscriptionStatus.ACTIVE);
       expect(active.end_date).not.toBeNull();
       const daysOut =
         (new Date(active.end_date).getTime() - new Date(active.start_date).getTime()) / 86_400_000;
@@ -583,19 +596,10 @@ describe('Vendors — /api/v1/vendors (e2e)', () => {
 
     it('re-activates an already-ACTIVE vendor onto a different plan', async () => {
       const vendor = await onboardVendor();
-      await asAdmin(
-        request(app.getHttpServer()).patch(`/api/v1/vendors/${vendor.body.data.public_id}/activate`),
-      )
-        .send({ plan_public_id: starterPlanPublicId })
-        .expect(200);
+      await activateVendor(vendor.body.data.public_id, starterPlanPublicId);
+      const fetched = await activateVendor(vendor.body.data.public_id, proPlanPublicId);
 
-      const res = await asAdmin(
-        request(app.getHttpServer()).patch(`/api/v1/vendors/${vendor.body.data.public_id}/activate`),
-      )
-        .send({ plan_public_id: proPlanPublicId })
-        .expect(200);
-
-      const updated = res.body.data;
+      const updated = fetched.body.data;
       expect(updated.status).toBe(VendorStatus.ACTIVE);
 
       const activeSubs = updated.subscriptions.filter((s: any) => s.status === SubscriptionStatus.ACTIVE);
@@ -611,14 +615,10 @@ describe('Vendors — /api/v1/vendors (e2e)', () => {
         vendorRepo.create({ ...validVendorPayload(), status: VendorStatus.SUSPENDED }),
       );
 
-      const res = await asAdmin(
-        request(app.getHttpServer()).patch(`/api/v1/vendors/${vendor.public_id}/activate`),
-      )
-        .send({ plan_public_id: starterPlanPublicId })
-        .expect(200);
+      const fetched = await activateVendor(vendor.public_id, starterPlanPublicId);
 
-      expect(res.body.data.status).toBe(VendorStatus.ACTIVE);
-      const active = res.body.data.subscriptions.find((s: any) => s.status === SubscriptionStatus.ACTIVE);
+      expect(fetched.body.data.status).toBe(VendorStatus.ACTIVE);
+      const active = fetched.body.data.subscriptions.find((s: any) => s.status === SubscriptionStatus.ACTIVE);
       expect(active.plan.public_id).toBe(starterPlanPublicId);
     });
   });

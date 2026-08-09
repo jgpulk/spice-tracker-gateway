@@ -59,9 +59,9 @@ export class VendorsController {
   @ResponseMessage('Vendor activated successfully')
   @ApiOperation({
     summary:
-      'Activate a vendor onto a paid plan (works for TRIAL → ACTIVE and SUSPENDED → ACTIVE). Super Admin only.',
+      '✅ Verified — Activate a vendor onto a paid plan (works for TRIAL → ACTIVE and SUSPENDED → ACTIVE). Super Admin only.',
   })
-  activate(@Param('id') id: string, @Body() body: ActivateVendorDto) {
-    return this.vendorsService.activateVendor(id, body.plan_public_id);
+  async activate(@Param('id') id: string, @Body() body: ActivateVendorDto) {
+    await this.vendorsService.activateVendor(id, body.plan_public_id);
   }
 }
