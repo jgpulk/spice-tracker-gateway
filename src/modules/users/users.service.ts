@@ -13,7 +13,7 @@ export class UsersService {
   ) {}
 
   findByEmail(email: string) {
-    return this.userRepo.findOneBy({ email });
+    return this.userRepo.findOne({ where: { email }, relations: ['vendor'] });
   }
 
   findAllByVendor(vendor_id: number) {

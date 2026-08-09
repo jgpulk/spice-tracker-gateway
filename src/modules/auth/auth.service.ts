@@ -18,7 +18,15 @@ export class AuthService {
     if (!valid) throw new UnauthorizedException('Invalid credentials');
 
     const token = this.jwtService.sign({ sub: user.id_user, role: user.role, vendor_id: user.vendor_id });
-    return { access_token: token, user: { id: user.id_user, name: user.name, role: user.role, vendor_id: user.vendor_id } };
+    return {
+      access_token: token,
+      user: {
+        id: user.public_id,
+        name: user.name,
+        role: user.role,
+        vendor_id: user.vendor?.public_id ?? null,
+      },
+    };
   }
 
   async hashPassword(password: string) {
