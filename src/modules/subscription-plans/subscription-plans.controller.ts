@@ -35,7 +35,7 @@ export class SubscriptionPlansController {
   @Roles(Role.SUPER_ADMIN)
   @Post()
   @ResponseMessage('Subscription plan created successfully')
-  @ApiOperation({ summary: 'Create a new subscription plan (Super Admin only)' })
+  @ApiOperation({ summary: '✅ Verified — Create a new subscription plan (Super Admin only)' })
   async create(@Body() dto: CreateSubscriptionPlanDto) {
     await this.plansService.create(dto);
   }

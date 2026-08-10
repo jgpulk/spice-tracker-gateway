@@ -172,6 +172,25 @@ describe('Subscription Plans — /api/v1/subscription-plans (e2e)', () => {
       expect(plan.is_default_trial).toBe(false); // always false on create — see below
     });
 
+    it('persists every provided field exactly as sent', async () => {
+      const fetched = await onboardPlan({
+        name: 'Full Field Plan',
+        plan_type: PlanType.PRO,
+        billing_cycle: BillingCycle.ANNUAL,
+        monthly_fee: 299.99,
+        description: 'Full description text',
+        is_active: true,
+      });
+
+      const plan = fetched.body.data;
+      expect(plan.name).toBe('Full Field Plan');
+      expect(plan.plan_type).toBe(PlanType.PRO);
+      expect(plan.billing_cycle).toBe(BillingCycle.ANNUAL);
+      expect(Number(plan.monthly_fee)).toBe(299.99);
+      expect(plan.description).toBe('Full description text');
+      expect(plan.is_active).toBe(true);
+    });
+
     it('rejects missing required fields', async () => {
       const res = await asAdmin(request(app.getHttpServer()).post('/api/v1/subscription-plans'))
         .send({})
@@ -182,15 +201,86 @@ describe('Subscription Plans — /api/v1/subscription-plans (e2e)', () => {
       expect(res.body.fields.monthly_fee).toBeDefined();
     });
 
+    it('rejects an empty string name', async () => {
+      const res = await createPlan({ name: '' }).expect(400);
+      expect(res.body.fields.name).toBeDefined();
+    });
+
+    it('rejects a name shorter than 2 characters', async () => {
+      const res = await createPlan({ name: 'X' }).expect(400);
+      expect(res.body.fields.name).toBeDefined();
+    });
+
+    it('rejects a name longer than 100 characters', async () => {
+      const res = await createPlan({ name: 'A'.repeat(101) }).expect(400);
+      expect(res.body.fields.name).toBeDefined();
+    });
+
+    it('rejects a non-string name', async () => {
+      const res = await createPlan({ name: 12345 }).expect(400);
+      expect(res.body.fields.name).toBeDefined();
+    });
+
+    it('accepts a name at the exact boundary lengths (2 and 100 characters)', async () => {
+      await createPlan({ name: 'AB' }).expect(201);
+      await createPlan({ name: 'C'.repeat(100) }).expect(201);
+    });
+
     it('rejects an invalid plan_type/billing_cycle enum value', async () => {
       const res = await createPlan({ plan_type: 'NOT_A_TYPE', billing_cycle: 'NOT_A_CYCLE' }).expect(400);
       expect(res.body.fields.plan_type).toBeDefined();
       expect(res.body.fields.billing_cycle).toBeDefined();
     });
 
-    it('rejects a non-positive monthly_fee', async () => {
-      const res = await createPlan({ monthly_fee: 0 }).expect(400);
+    it('accepts every valid plan_type and billing_cycle combination', async () => {
+      for (const plan_type of Object.values(PlanType)) {
+        for (const billing_cycle of Object.values(BillingCycle)) {
+          await createPlan({ plan_type, billing_cycle }).expect(201);
+        }
+      }
+    });
+
+    it('rejects a non-positive monthly_fee (zero and negative)', async () => {
+      const zero = await createPlan({ monthly_fee: 0 }).expect(400);
+      expect(zero.body.fields.monthly_fee).toBeDefined();
+
+      const negative = await createPlan({ monthly_fee: -50 }).expect(400);
+      expect(negative.body.fields.monthly_fee).toBeDefined();
+    });
+
+    it('rejects a non-numeric monthly_fee', async () => {
+      const res = await createPlan({ monthly_fee: 'not-a-number' }).expect(400);
       expect(res.body.fields.monthly_fee).toBeDefined();
+    });
+
+    it('accepts a decimal monthly_fee', async () => {
+      const fetched = await onboardPlan({ monthly_fee: 149.5 });
+      expect(Number(fetched.body.data.monthly_fee)).toBe(149.5);
+    });
+
+    it('rejects a non-string description', async () => {
+      const res = await createPlan({ description: 12345 }).expect(400);
+      expect(res.body.fields.description).toBeDefined();
+    });
+
+    it('omitting description leaves it null', async () => {
+      const fetched = await onboardPlan();
+      expect(fetched.body.data.description).toBeNull();
+    });
+
+    it('rejects a non-boolean is_active value', async () => {
+      const res = await createPlan({ is_active: 'yes' }).expect(400);
+      expect(res.body.fields.is_active).toBeDefined();
+    });
+
+    it('creates successfully with is_active explicitly set to true', async () => {
+      const fetched = await onboardPlan({ is_active: true });
+      expect(fetched.body.data.is_active).toBe(true);
+    });
+
+    it('creates successfully with is_active explicitly set to false', async () => {
+      const fetched = await onboardPlan({ is_active: false });
+      expect(fetched.body.data.is_active).toBe(false);
     });
 
     it('rejects unknown fields on the DTO', () => {
