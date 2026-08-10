@@ -2,6 +2,7 @@ import { Controller, Get, Post, Patch, Param, Body, UseGuards } from '@nestjs/co
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { SubscriptionPlansService } from './subscription-plans.service';
 import { CreateSubscriptionPlanDto } from './dto/create-subscription-plan.dto';
+import { UpdateSubscriptionPlanDto } from './dto/update-subscription-plan.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -43,7 +44,7 @@ export class SubscriptionPlansController {
   @Patch(':id')
   @ResponseMessage('Subscription plan updated successfully')
   @ApiOperation({ summary: 'Update a subscription plan (Super Admin only)' })
-  update(@Param('id') id: string, @Body() dto: CreateSubscriptionPlanDto) {
+  update(@Param('id') id: string, @Body() dto: UpdateSubscriptionPlanDto) {
     return this.plansService.update(id, dto);
   }
 }

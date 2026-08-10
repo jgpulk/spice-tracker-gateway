@@ -42,8 +42,10 @@ describe('Subscription Plans — /api/v1/subscription-plans (e2e)', () => {
   const createPlan = (overrides: Record<string, unknown> = {}) =>
     asAdmin(request(app.getHttpServer()).post('/api/v1/subscription-plans')).send(validPlanPayload(overrides));
 
-  // PATCH /subscription-plans/:id reuses CreateSubscriptionPlanDto, whose
-  // core fields are all required — same pattern as PATCH /vendors/:id.
+  // PATCH /subscription-plans/:id uses UpdateSubscriptionPlanDto, which
+  // extends CreateSubscriptionPlanDto (core fields all required, same
+  // pattern as PATCH /vendors/:id) and adds is_default_trial back —
+  // that flag can only ever be set via update, never on create.
   const toUpdatePayload = (plan: any, overrides: Record<string, unknown> = {}) => ({
     name: plan.name,
     plan_type: plan.plan_type,
@@ -54,6 +56,11 @@ describe('Subscription Plans — /api/v1/subscription-plans (e2e)', () => {
     is_default_trial: plan.is_default_trial,
     ...overrides,
   });
+
+  const promoteToDefaultTrial = (plan: any) =>
+    asAdmin(request(app.getHttpServer()).patch(`/api/v1/subscription-plans/${plan.public_id}`)).send(
+      toUpdatePayload(plan, { is_default_trial: true }),
+    );
 
   beforeAll(async () => {
     const { app: testApp, moduleFixture } = await createTestApp();
@@ -170,6 +177,10 @@ describe('Subscription Plans — /api/v1/subscription-plans (e2e)', () => {
 
     it('rejects unknown fields on the DTO', () => {
       return createPlan({ not_a_real_field: 'x' }).expect(400);
+    });
+
+    it('rejects is_default_trial on create — that flag can only be set via update', () => {
+      return createPlan({ is_default_trial: true }).expect(400);
     });
   });
 
@@ -311,43 +322,95 @@ describe('Subscription Plans — /api/v1/subscription-plans (e2e)', () => {
         .expect(200);
       expect(Number(res.body.data.monthly_fee)).toBe(349);
     });
+
+    it('rejects missing required fields on update', async () => {
+      const plan = await createPlan().expect(201);
+      const res = await asAdmin(
+        request(app.getHttpServer()).patch(`/api/v1/subscription-plans/${plan.body.data.public_id}`),
+      )
+        .send({})
+        .expect(400);
+
+      expect(res.body.fields.name).toBeDefined();
+      expect(res.body.fields.plan_type).toBeDefined();
+      expect(res.body.fields.billing_cycle).toBeDefined();
+      expect(res.body.fields.monthly_fee).toBeDefined();
+    });
+
+    it('rejects an invalid plan_type/billing_cycle enum value on update', async () => {
+      const plan = await createPlan().expect(201);
+      const res = await asAdmin(
+        request(app.getHttpServer()).patch(`/api/v1/subscription-plans/${plan.body.data.public_id}`),
+      )
+        .send(toUpdatePayload(plan.body.data, { plan_type: 'NOT_A_TYPE', billing_cycle: 'NOT_A_CYCLE' }))
+        .expect(400);
+
+      expect(res.body.fields.plan_type).toBeDefined();
+      expect(res.body.fields.billing_cycle).toBeDefined();
+    });
+
+    it('rejects a non-positive monthly_fee on update', async () => {
+      const plan = await createPlan().expect(201);
+      const res = await asAdmin(
+        request(app.getHttpServer()).patch(`/api/v1/subscription-plans/${plan.body.data.public_id}`),
+      )
+        .send(toUpdatePayload(plan.body.data, { monthly_fee: -1 }))
+        .expect(400);
+      expect(res.body.fields.monthly_fee).toBeDefined();
+    });
+
+    it('rejects unknown fields on update', async () => {
+      const plan = await createPlan().expect(201);
+      await asAdmin(request(app.getHttpServer()).patch(`/api/v1/subscription-plans/${plan.body.data.public_id}`))
+        .send({ ...toUpdatePayload(plan.body.data), not_a_real_field: 'x' })
+        .expect(400);
+    });
+
+    it('deactivates a plan via update, reflected in both GET /:id and the list', async () => {
+      const plan = await createPlan().expect(201);
+
+      await asAdmin(request(app.getHttpServer()).patch(`/api/v1/subscription-plans/${plan.body.data.public_id}`))
+        .send(toUpdatePayload(plan.body.data, { is_active: false }))
+        .expect(200);
+
+      const single = await asAdmin(
+        request(app.getHttpServer()).get(`/api/v1/subscription-plans/${plan.body.data.public_id}`),
+      ).expect(200);
+      expect(single.body.data.is_active).toBe(false);
+
+      const list = await asAdmin(request(app.getHttpServer()).get('/api/v1/subscription-plans')).expect(200);
+      const item = list.body.data.find((p: any) => p.public_id === plan.body.data.public_id);
+      expect(item.is_active).toBe(false);
+    });
   });
 
   describe('is_default_trial exclusivity', () => {
-    it('only one plan can be the default trial at a time — creating a new default unsets the old one', async () => {
-      const planA = await createPlan({ is_default_trial: true }).expect(201);
-      expect(planA.body.data.is_default_trial).toBe(true);
-
-      const planB = await createPlan({ is_default_trial: true }).expect(201);
-      expect(planB.body.data.is_default_trial).toBe(true);
+    it('promoting a plan to default trial unsets whichever plan held it before', async () => {
+      const planA = await createPlan().expect(201);
+      await promoteToDefaultTrial(planA.body.data).expect(200);
 
       const refetchedA = await asAdmin(
         request(app.getHttpServer()).get(`/api/v1/subscription-plans/${planA.body.data.public_id}`),
       ).expect(200);
-      expect(refetchedA.body.data.is_default_trial).toBe(false);
-    });
+      expect(refetchedA.body.data.is_default_trial).toBe(true);
 
-    it('updating a plan to is_default_trial: true unsets whichever plan held it before', async () => {
-      const planA = await createPlan({ is_default_trial: true }).expect(201);
       const planB = await createPlan().expect(201);
+      await promoteToDefaultTrial(planB.body.data).expect(200);
 
-      await asAdmin(request(app.getHttpServer()).patch(`/api/v1/subscription-plans/${planB.body.data.public_id}`))
-        .send(toUpdatePayload(planB.body.data, { is_default_trial: true }))
-        .expect(200);
-
-      const refetchedA = await asAdmin(
+      const refetchedAAgain = await asAdmin(
         request(app.getHttpServer()).get(`/api/v1/subscription-plans/${planA.body.data.public_id}`),
       ).expect(200);
       const refetchedB = await asAdmin(
         request(app.getHttpServer()).get(`/api/v1/subscription-plans/${planB.body.data.public_id}`),
       ).expect(200);
 
-      expect(refetchedA.body.data.is_default_trial).toBe(false);
+      expect(refetchedAAgain.body.data.is_default_trial).toBe(false);
       expect(refetchedB.body.data.is_default_trial).toBe(true);
     });
 
     it('a plan can unset its own default-trial flag without another plan taking it over', async () => {
-      const planA = await createPlan({ is_default_trial: true }).expect(201);
+      const planA = await createPlan().expect(201);
+      await promoteToDefaultTrial(planA.body.data).expect(200);
 
       await asAdmin(request(app.getHttpServer()).patch(`/api/v1/subscription-plans/${planA.body.data.public_id}`))
         .send(toUpdatePayload(planA.body.data, { is_default_trial: false }))
@@ -357,9 +420,11 @@ describe('Subscription Plans — /api/v1/subscription-plans (e2e)', () => {
       expect(all.body.data.some((p: any) => p.is_default_trial)).toBe(false);
     });
 
-    it('creating a plan without specifying is_default_trial does not disturb the current default', async () => {
-      const defaultPlan = await createPlan({ is_default_trial: true }).expect(201);
-      await createPlan().expect(201); // no is_default_trial in payload at all
+    it('creating a new plan does not disturb the current default', async () => {
+      const defaultPlan = await createPlan().expect(201);
+      await promoteToDefaultTrial(defaultPlan.body.data).expect(200);
+
+      await createPlan().expect(201); // brand-new plan, is_default_trial not touched at all
 
       const refetched = await asAdmin(
         request(app.getHttpServer()).get(`/api/v1/subscription-plans/${defaultPlan.body.data.public_id}`),

@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { SubscriptionPlan } from './entities/subscription-plan.entity';
 import { CreateSubscriptionPlanDto } from './dto/create-subscription-plan.dto';
+import { UpdateSubscriptionPlanDto } from './dto/update-subscription-plan.dto';
 
 @Injectable()
 export class SubscriptionPlansService {
@@ -39,14 +40,15 @@ export class SubscriptionPlansService {
   }
 
   async create(dto: CreateSubscriptionPlanDto) {
-    if (dto.is_default_trial) {
-      await this.planRepo.update({ is_default_trial: true }, { is_default_trial: false });
-    }
-    const plan = this.planRepo.create({ ...dto, is_active: dto.is_active ?? true });
+    const plan = this.planRepo.create({
+      ...dto,
+      is_active: dto.is_active ?? true,
+      is_default_trial: false,
+    });
     return this.planRepo.save(plan);
   }
 
-  async update(publicId: string, dto: Partial<CreateSubscriptionPlanDto>) {
+  async update(publicId: string, dto: UpdateSubscriptionPlanDto) {
     const plan = await this.findOne(publicId);
     if (dto.is_default_trial) {
       await this.planRepo.update({ is_default_trial: true }, { is_default_trial: false });
