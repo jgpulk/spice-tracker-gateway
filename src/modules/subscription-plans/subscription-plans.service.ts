@@ -41,8 +41,6 @@ export class SubscriptionPlansService {
       description: plan.description,
       is_active: plan.is_active,
       is_default_trial: plan.is_default_trial,
-      created_at: plan.created_at,
-      updated_at: plan.updated_at,
     };
   }
 

@@ -344,24 +344,6 @@ describe('Subscription Plans — /api/v1/subscription-plans (e2e)', () => {
       const item = res.body.data.find((p: any) => p.public_id === inactive.public_id);
       expect(item.is_active).toBe(false);
     });
-
-    it('allows fetching a deactivated plan directly by id', async () => {
-      const inactive = await planRepo.save(
-        planRepo.create({
-          name: 'Deactivated But Fetchable',
-          plan_type: PlanType.STARTER,
-          billing_cycle: BillingCycle.MONTHLY,
-          monthly_fee: 149,
-          is_active: false,
-        }),
-      );
-
-      const res = await asAdmin(
-        request(app.getHttpServer()).get(`/api/v1/subscription-plans/${inactive.public_id}`),
-      ).expect(200);
-      expect(res.body.data.name).toBe('Deactivated But Fetchable');
-      expect(res.body.data.is_active).toBe(false);
-    });
   });
 
   describe('GET /subscription-plans/:id', () => {
@@ -379,15 +361,95 @@ describe('Subscription Plans — /api/v1/subscription-plans (e2e)', () => {
       ).expect(403);
     });
 
-    it('fetches a plan by public_id', async () => {
-      const plan = await onboardPlan({ name: 'Fetchable Plan' });
-      expect(plan.body.data.name).toBe('Fetchable Plan');
+    it('fetches a plan by public_id, wrapped in the standard success envelope', async () => {
+      const payload = validPlanPayload({ name: 'Fetchable Plan' });
+      await createPlan(payload).expect(201);
+      const row = await planRepo.findOneBy({ name: payload.name });
+
+      const res = await asAdmin(
+        request(app.getHttpServer()).get(`/api/v1/subscription-plans/${row!.public_id}`),
+      ).expect(200);
+
+      expect(res.body.status).toBe(true);
+      expect(res.body.message).toBe('Subscription plan fetched successfully');
+      expect(res.body.data.name).toBe('Fetchable Plan');
+    });
+
+    it('returns every field exactly as created, including null description when omitted', async () => {
+      const fetched = await onboardPlan({
+        name: 'Full Detail Plan',
+        plan_type: PlanType.ENTERPRISE,
+        billing_cycle: BillingCycle.ANNUAL,
+        monthly_fee: 1999.5,
+      });
+
+      const plan = fetched.body.data;
+      expect(plan.name).toBe('Full Detail Plan');
+      expect(plan.plan_type).toBe(PlanType.ENTERPRISE);
+      expect(plan.billing_cycle).toBe(BillingCycle.ANNUAL);
+      expect(Number(plan.monthly_fee)).toBe(1999.5);
+      expect(plan.description).toBeNull(); // omitted on create
+      expect(plan.is_active).toBe(true);
+      expect(plan.is_default_trial).toBe(false);
+    });
+
+    it('returns a curated shape — no internal PK, no timestamps', async () => {
+      const plan = await onboardPlan({ description: 'A described plan' });
+
+      expect(Object.keys(plan.body.data).sort()).toEqual(
+        ['billing_cycle', 'description', 'is_active', 'is_default_trial', 'monthly_fee', 'name', 'plan_type', 'public_id'].sort(),
+      );
+      expect(plan.body.data.id_subscription_plan).toBeUndefined();
+      expect(plan.body.data.created_at).toBeUndefined();
+      expect(plan.body.data.updated_at).toBeUndefined();
+    });
+
+    it('reflects is_active: false for a deactivated plan (fetchable directly even though the list would still show it too)', async () => {
+      const inactive = await planRepo.save(
+        planRepo.create({
+          name: 'Deactivated But Fetchable',
+          plan_type: PlanType.STARTER,
+          billing_cycle: BillingCycle.MONTHLY,
+          monthly_fee: 149,
+          is_active: false,
+        }),
+      );
+
+      const res = await asAdmin(
+        request(app.getHttpServer()).get(`/api/v1/subscription-plans/${inactive.public_id}`),
+      ).expect(200);
+      expect(res.body.data.name).toBe('Deactivated But Fetchable');
+      expect(res.body.data.is_active).toBe(false);
+    });
+
+    it('reflects is_default_trial: true for the plan currently flagged as the default trial', async () => {
+      const defaultPlan = await planRepo.save(
+        planRepo.create({
+          name: 'Current Default Trial Plan',
+          plan_type: PlanType.STARTER,
+          billing_cycle: BillingCycle.MONTHLY,
+          monthly_fee: 0,
+          is_active: true,
+          is_default_trial: true,
+        }),
+      );
+
+      const res = await asAdmin(
+        request(app.getHttpServer()).get(`/api/v1/subscription-plans/${defaultPlan.public_id}`),
+      ).expect(200);
+      expect(res.body.data.is_default_trial).toBe(true);
     });
 
     it('404s on an unknown (but well-formed) plan id', () => {
       return asAdmin(
         request(app.getHttpServer()).get('/api/v1/subscription-plans/00000000-0000-0000-0000-000000000000'),
       ).expect(404);
+    });
+
+    it('404s (not 400 or 500) on a malformed, non-UUID plan id', () => {
+      return asAdmin(request(app.getHttpServer()).get('/api/v1/subscription-plans/not-a-valid-uuid')).expect(
+        404,
+      );
     });
   });
 
