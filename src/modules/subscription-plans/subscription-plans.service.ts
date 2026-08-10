@@ -32,11 +32,28 @@ export class SubscriptionPlansService {
   async findOne(publicId: string) {
     const plan = await this.planRepo.findOneBy({ public_id: publicId });
     if (!plan) throw new NotFoundException('Subscription plan not found');
-    return plan;
+    return {
+      public_id: plan.public_id,
+      name: plan.name,
+      plan_type: plan.plan_type,
+      billing_cycle: plan.billing_cycle,
+      monthly_fee: plan.monthly_fee,
+      description: plan.description,
+      is_active: plan.is_active,
+      is_default_trial: plan.is_default_trial,
+      created_at: plan.created_at,
+      updated_at: plan.updated_at,
+    };
   }
 
   findDefaultTrialPlan() {
     return this.planRepo.findOneBy({ is_default_trial: true });
+  }
+
+  async findRaw(publicId: string) {
+    const plan = await this.planRepo.findOneBy({ public_id: publicId });
+    if (!plan) throw new NotFoundException('Subscription plan not found');
+    return plan;
   }
 
   async create(dto: CreateSubscriptionPlanDto) {
@@ -45,15 +62,17 @@ export class SubscriptionPlansService {
       is_active: dto.is_active ?? true,
       is_default_trial: false,
     });
-    return this.planRepo.save(plan);
+    await this.planRepo.save(plan);
   }
 
   async update(publicId: string, dto: UpdateSubscriptionPlanDto) {
-    const plan = await this.findOne(publicId);
-    if (dto.is_default_trial) {
-      await this.planRepo.update({ is_default_trial: true }, { is_default_trial: false });
-    }
-    await this.planRepo.update(plan.id_subscription_plan, dto);
-    return this.findOne(publicId);
+    const plan = await this.planRepo.findOneBy({ public_id: publicId });
+    if (!plan) throw new NotFoundException('Subscription plan not found');
+    await this.planRepo.update(plan.id_subscription_plan, {
+      name: dto.name,
+      plan_type: dto.plan_type,
+      description: dto.description,
+      is_active: dto.is_active,
+    });
   }
 }

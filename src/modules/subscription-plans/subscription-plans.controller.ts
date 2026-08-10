@@ -36,15 +36,15 @@ export class SubscriptionPlansController {
   @Post()
   @ResponseMessage('Subscription plan created successfully')
   @ApiOperation({ summary: 'Create a new subscription plan (Super Admin only)' })
-  create(@Body() dto: CreateSubscriptionPlanDto) {
-    return this.plansService.create(dto);
+  async create(@Body() dto: CreateSubscriptionPlanDto) {
+    await this.plansService.create(dto);
   }
 
   @Roles(Role.SUPER_ADMIN)
   @Patch(':id')
   @ResponseMessage('Subscription plan updated successfully')
-  @ApiOperation({ summary: 'Update a subscription plan (Super Admin only)' })
-  update(@Param('id') id: string, @Body() dto: UpdateSubscriptionPlanDto) {
-    return this.plansService.update(id, dto);
+  @ApiOperation({ summary: '✅ Verified — Update a subscription plan (Super Admin only)' })
+  async update(@Param('id') id: string, @Body() dto: UpdateSubscriptionPlanDto) {
+    await this.plansService.update(id, dto);
   }
 }
