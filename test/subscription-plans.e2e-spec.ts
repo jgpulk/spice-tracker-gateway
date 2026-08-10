@@ -344,6 +344,25 @@ describe('Subscription Plans — /api/v1/subscription-plans (e2e)', () => {
       const item = res.body.data.find((p: any) => p.public_id === inactive.public_id);
       expect(item.is_active).toBe(false);
     });
+
+    it('excludes soft-deleted plans from the list — unlike is_active: false, this one really is filtered', async () => {
+      const kept = await onboardPlan();
+      const deleted = await planRepo.save(
+        planRepo.create({
+          name: 'Soft Deleted Plan',
+          plan_type: PlanType.STARTER,
+          billing_cycle: BillingCycle.MONTHLY,
+          monthly_fee: 149,
+          is_deleted: true,
+        }),
+      );
+
+      const res = await asAdmin(request(app.getHttpServer()).get('/api/v1/subscription-plans')).expect(200);
+      const ids = res.body.data.map((p: any) => p.public_id);
+
+      expect(ids).toContain(kept.body.data.public_id);
+      expect(ids).not.toContain(deleted.public_id);
+    });
   });
 
   describe('GET /subscription-plans/:id', () => {
@@ -450,6 +469,22 @@ describe('Subscription Plans — /api/v1/subscription-plans (e2e)', () => {
       return asAdmin(request(app.getHttpServer()).get('/api/v1/subscription-plans/not-a-valid-uuid')).expect(
         404,
       );
+    });
+
+    it('404s on a soft-deleted plan — hidden from single-fetch just like the list', async () => {
+      const deleted = await planRepo.save(
+        planRepo.create({
+          name: 'Deleted And Unfetchable',
+          plan_type: PlanType.STARTER,
+          billing_cycle: BillingCycle.MONTHLY,
+          monthly_fee: 149,
+          is_deleted: true,
+        }),
+      );
+
+      await asAdmin(
+        request(app.getHttpServer()).get(`/api/v1/subscription-plans/${deleted.public_id}`),
+      ).expect(404);
     });
   });
 
@@ -581,6 +616,111 @@ describe('Subscription Plans — /api/v1/subscription-plans (e2e)', () => {
       await asAdmin(request(app.getHttpServer()).patch(`/api/v1/subscription-plans/${plan.body.data.public_id}`))
         .send({ ...toUpdatePayload(plan.body.data), is_default_trial: true })
         .expect(400);
+    });
+
+    it('rejects updating a soft-deleted plan', async () => {
+      const deleted = await planRepo.save(
+        planRepo.create({
+          name: 'Deleted, Cannot Update',
+          plan_type: PlanType.STARTER,
+          billing_cycle: BillingCycle.MONTHLY,
+          monthly_fee: 149,
+          is_deleted: true,
+        }),
+      );
+
+      // update()'s own lookup does NOT filter is_deleted (unlike findOne()),
+      // so this reaches the explicit is_deleted guard and 400s — it does not
+      // 404 the way GET/activate do for deleted plans.
+      const res = await asAdmin(
+        request(app.getHttpServer()).patch(`/api/v1/subscription-plans/${deleted.public_id}`),
+      )
+        .send({ name: 'Renamed', plan_type: PlanType.STARTER, is_active: true })
+        .expect(400);
+      expect(res.body.message).toMatch(/deleted/i);
+    });
+  });
+
+  describe('DELETE /subscription-plans/:id', () => {
+    it('rejects an unauthenticated request', async () => {
+      const plan = await onboardPlan();
+      await request(app.getHttpServer())
+        .delete(`/api/v1/subscription-plans/${plan.body.data.public_id}`)
+        .expect(401);
+    });
+
+    it('rejects a non-SUPER_ADMIN caller', async () => {
+      const plan = await onboardPlan();
+      await asOwner(
+        request(app.getHttpServer()).delete(`/api/v1/subscription-plans/${plan.body.data.public_id}`),
+      ).expect(403);
+    });
+
+    it('404s on an unknown plan id', () => {
+      return asAdmin(
+        request(app.getHttpServer()).delete('/api/v1/subscription-plans/00000000-0000-0000-0000-000000000000'),
+      ).expect(404);
+    });
+
+    it('returns no data payload on delete, only a success message', async () => {
+      const plan = await onboardPlan();
+      const res = await asAdmin(
+        request(app.getHttpServer()).delete(`/api/v1/subscription-plans/${plan.body.data.public_id}`),
+      ).expect(200);
+
+      expect(res.body).toEqual({ status: true, message: 'Subscription plan deleted successfully' });
+      expect(res.body.data).toBeUndefined();
+    });
+
+    it('soft-deletes: sets is_deleted true AND forces is_active false', async () => {
+      const plan = await onboardPlan({ is_active: true });
+
+      await asAdmin(
+        request(app.getHttpServer()).delete(`/api/v1/subscription-plans/${plan.body.data.public_id}`),
+      ).expect(200);
+
+      const row = await planRepo.findOneBy({ public_id: plan.body.data.public_id });
+      expect(row!.is_deleted).toBe(true);
+      expect(row!.is_active).toBe(false);
+    });
+
+    it('hides the deleted plan from both GET /:id and the list afterward', async () => {
+      const plan = await onboardPlan();
+      await asAdmin(
+        request(app.getHttpServer()).delete(`/api/v1/subscription-plans/${plan.body.data.public_id}`),
+      ).expect(200);
+
+      await asAdmin(
+        request(app.getHttpServer()).get(`/api/v1/subscription-plans/${plan.body.data.public_id}`),
+      ).expect(404);
+
+      const list = await asAdmin(request(app.getHttpServer()).get('/api/v1/subscription-plans')).expect(200);
+      expect(list.body.data.some((p: any) => p.public_id === plan.body.data.public_id)).toBe(false);
+    });
+
+    it('404s when deleting an already-deleted plan — not idempotent-200', async () => {
+      const plan = await onboardPlan();
+      await asAdmin(
+        request(app.getHttpServer()).delete(`/api/v1/subscription-plans/${plan.body.data.public_id}`),
+      ).expect(200);
+
+      await asAdmin(
+        request(app.getHttpServer()).delete(`/api/v1/subscription-plans/${plan.body.data.public_id}`),
+      ).expect(404);
+    });
+
+    it('a deleted plan can no longer be updated afterward', async () => {
+      const plan = await onboardPlan();
+      await asAdmin(
+        request(app.getHttpServer()).delete(`/api/v1/subscription-plans/${plan.body.data.public_id}`),
+      ).expect(200);
+
+      const res = await asAdmin(
+        request(app.getHttpServer()).patch(`/api/v1/subscription-plans/${plan.body.data.public_id}`),
+      )
+        .send(toUpdatePayload(plan.body.data))
+        .expect(400);
+      expect(res.body.message).toMatch(/deleted/i);
     });
   });
 

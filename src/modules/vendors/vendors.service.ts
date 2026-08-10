@@ -181,6 +181,9 @@ export class VendorsService {
     const saved = await this.vendorRepo.save(vendor);
 
     const defaultPlan = await this.plansService.findDefaultTrialPlan();
+    if (!defaultPlan) {
+      throw new BadRequestException('No active default trial plan is configured. Contact system administrator.');
+    }
 
     const today = new Date();
     const trialEnd = new Date(today);
@@ -189,7 +192,7 @@ export class VendorsService {
     await this.subscriptionRepo.save(
       this.subscriptionRepo.create({
         vendor_id: saved.id_vendor,
-        plan_id: defaultPlan?.id_subscription_plan ?? null,
+        plan_id: defaultPlan.id_subscription_plan,
         is_trial: true,
         status: SubscriptionStatus.ACTIVE,
         start_date: today,
@@ -242,9 +245,8 @@ export class VendorsService {
   async activateVendor(publicId: string, planPublicId: string) {
     const vendor = await this.getVendorOrFail(publicId);
     const plan = await this.plansService.findRaw(planPublicId);
-    if (!plan.is_active) {
-      throw new BadRequestException('Cannot activate a vendor onto a deactivated plan');
-    }
+    if (plan.is_deleted) throw new BadRequestException('Cannot activate a vendor onto a deleted plan');
+    if (!plan.is_active) throw new BadRequestException('Cannot activate a vendor onto a deactivated plan');
 
     await this.subscriptionRepo.update(
       { vendor_id: vendor.id_vendor, status: SubscriptionStatus.ACTIVE },

@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Param, Body, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Param, Body, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { SubscriptionPlansService } from './subscription-plans.service';
 import { CreateSubscriptionPlanDto } from './dto/create-subscription-plan.dto';
@@ -46,5 +46,13 @@ export class SubscriptionPlansController {
   @ApiOperation({ summary: '✅ Verified — Update a subscription plan (Super Admin only)' })
   async update(@Param('id') id: string, @Body() dto: UpdateSubscriptionPlanDto) {
     await this.plansService.update(id, dto);
+  }
+
+  @Roles(Role.SUPER_ADMIN)
+  @Delete(':id')
+  @ResponseMessage('Subscription plan deleted successfully')
+  @ApiOperation({ summary: '✅ Verified — Soft-delete a subscription plan (Super Admin only)' })
+  async delete(@Param('id') id: string) {
+    await this.plansService.delete(id);
   }
 }

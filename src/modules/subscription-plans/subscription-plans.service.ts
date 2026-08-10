@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { SubscriptionPlan } from './entities/subscription-plan.entity';
@@ -14,6 +14,7 @@ export class SubscriptionPlansService {
 
   async findAll() {
     const plans = await this.planRepo.find({
+      where: { is_deleted: false },
       order: { plan_type: 'ASC', monthly_fee: 'ASC' },
     });
 
@@ -30,7 +31,7 @@ export class SubscriptionPlansService {
   }
 
   async findOne(publicId: string) {
-    const plan = await this.planRepo.findOneBy({ public_id: publicId });
+    const plan = await this.planRepo.findOneBy({ public_id: publicId, is_deleted: false });
     if (!plan) throw new NotFoundException('Subscription plan not found');
     return {
       public_id: plan.public_id,
@@ -45,11 +46,11 @@ export class SubscriptionPlansService {
   }
 
   findDefaultTrialPlan() {
-    return this.planRepo.findOneBy({ is_default_trial: true });
+    return this.planRepo.findOneBy({ is_default_trial: true, is_active: true, is_deleted: false });
   }
 
   async findRaw(publicId: string) {
-    const plan = await this.planRepo.findOneBy({ public_id: publicId });
+    const plan = await this.planRepo.findOneBy({ public_id: publicId, is_deleted: false });
     if (!plan) throw new NotFoundException('Subscription plan not found');
     return plan;
   }
@@ -59,6 +60,7 @@ export class SubscriptionPlansService {
       ...dto,
       is_active: dto.is_active ?? true,
       is_default_trial: false,
+      is_deleted: false,
     });
     await this.planRepo.save(plan);
   }
@@ -66,11 +68,19 @@ export class SubscriptionPlansService {
   async update(publicId: string, dto: UpdateSubscriptionPlanDto) {
     const plan = await this.planRepo.findOneBy({ public_id: publicId });
     if (!plan) throw new NotFoundException('Subscription plan not found');
+    if (plan.is_deleted) throw new BadRequestException('Cannot update a deleted subscription plan');
+
     await this.planRepo.update(plan.id_subscription_plan, {
       name: dto.name,
       plan_type: dto.plan_type,
       description: dto.description,
       is_active: dto.is_active,
     });
+  }
+
+  async delete(publicId: string) {
+    const plan = await this.planRepo.findOneBy({ public_id: publicId, is_deleted: false });
+    if (!plan) throw new NotFoundException('Subscription plan not found');
+    await this.planRepo.update(plan.id_subscription_plan, { is_deleted: true, is_active: false });
   }
 }

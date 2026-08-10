@@ -22,6 +22,7 @@ describe('Vendors — /api/v1/vendors (e2e)', () => {
   let vendorOwnerToken: string;
   let starterPlanPublicId: string;
   let proPlanPublicId: string;
+  let baselineDefaultTrialPlan: SubscriptionPlan;
   let uniqueCounter = 0;
 
   const ADMIN_EMAIL = 'e2e-admin@spicewallet.test';
@@ -161,6 +162,22 @@ describe('Vendors — /api/v1/vendors (e2e)', () => {
     );
     proPlanPublicId = proPlan.public_id;
 
+    // create() now REQUIRES an active, non-deleted default trial plan to
+    // exist — onboarding 400s otherwise (see the "trial plan allocation"
+    // describe block below). Every other test in this file onboards vendors
+    // through the real API, so this baseline has to exist for the whole
+    // suite, not just the tests that care about plan allocation specifically.
+    baselineDefaultTrialPlan = await planRepo.save(
+      planRepo.create({
+        name: 'Baseline Default Trial Plan',
+        plan_type: PlanType.STARTER,
+        billing_cycle: BillingCycle.MONTHLY,
+        monthly_fee: 0,
+        is_active: true,
+        is_default_trial: true,
+      }),
+    );
+
     const ownedVendor = await vendorRepo.save(
       vendorRepo.create({ ...validVendorPayload(), status: VendorStatus.ACTIVE }),
     );
@@ -231,7 +248,10 @@ describe('Vendors — /api/v1/vendors (e2e)', () => {
       const trialSub = vendor.subscriptions[0];
       expect(trialSub.is_trial).toBe(true);
       expect(trialSub.status).toBe(SubscriptionStatus.ACTIVE);
-      expect(trialSub.plan).toBeNull();
+      // Onboarding now requires an active default trial plan to exist at
+      // all (see the "trial plan allocation" describe block below), so a
+      // fresh trial is always assigned to whatever that plan currently is.
+      expect(trialSub.plan.public_id).toBe(baselineDefaultTrialPlan.public_id);
 
       const days =
         (new Date(trialSub.end_date).getTime() - new Date(trialSub.start_date).getTime()) / 86_400_000;
@@ -678,6 +698,32 @@ describe('Vendors — /api/v1/vendors (e2e)', () => {
       expect(single.body.data.status).toBe(VendorStatus.TRIAL);
     });
 
+    it('404s (not 400) activating onto a soft-deleted plan — SubscriptionPlansService.findRaw() excludes deleted plans entirely', async () => {
+      const deletedPlan = await planRepo.save(
+        planRepo.create({
+          name: 'Deleted Plan',
+          plan_type: PlanType.STARTER,
+          billing_cycle: BillingCycle.MONTHLY,
+          monthly_fee: 199,
+          is_active: true,
+          is_deleted: true,
+        }),
+      );
+      const vendor = await onboardVendor();
+
+      const res = await asAdmin(
+        request(app.getHttpServer()).patch(`/api/v1/vendors/${vendor.body.data.public_id}/activate`),
+      )
+        .send({ plan_public_id: deletedPlan.public_id })
+        .expect(404);
+      expect(res.body.message).toMatch(/not found/i);
+
+      const single = await asAdmin(
+        request(app.getHttpServer()).get(`/api/v1/vendors/${vendor.body.data.public_id}`),
+      ).expect(200);
+      expect(single.body.data.status).toBe(VendorStatus.TRIAL);
+    });
+
     it('returns no data payload on activation, only a success message', async () => {
       const vendor = await onboardVendor();
       const res = await asAdmin(
@@ -775,63 +821,157 @@ describe('Vendors — /api/v1/vendors (e2e)', () => {
   });
 
   describe('trial plan allocation', () => {
-    it("leaves the trial subscription plan-less when no plan is flagged as the default trial", async () => {
-      // None of this file's fixture plans (starterPlanPublicId/proPlanPublicId)
-      // are ever flagged is_default_trial, so this is the baseline behavior.
+    // create() now REQUIRES an active, non-deleted default trial plan to
+    // exist at all — onboarding 400s otherwise (see below). The whole file
+    // relies on baselineDefaultTrialPlan (set up in beforeAll) for every
+    // other test's onboardVendor() calls to keep working, so these tests
+    // always restore it in a `finally` before moving on.
+
+    it("assigns the currently-configured default trial plan to a new vendor's trial", async () => {
       const vendor = await onboardVendor();
       const trialSub = vendor.body.data.subscriptions.find((s: any) => s.is_trial);
 
-      expect(trialSub.plan).toBeNull();
+      expect(trialSub.is_trial).toBe(true);
+      expect(trialSub.status).toBe(SubscriptionStatus.ACTIVE);
+      expect(trialSub.plan.public_id).toBe(baselineDefaultTrialPlan.public_id);
     });
 
-    it("assigns the currently-configured default trial plan to a new vendor's trial", async () => {
-      const defaultPlan = await planRepo.save(
+    it('switches new vendors over to a newly-promoted default trial plan', async () => {
+      const newDefault = await planRepo.save(
         planRepo.create({
-          name: 'Onboarding Default Trial Plan',
+          name: 'Newly Promoted Default Trial Plan',
           plan_type: PlanType.STARTER,
           billing_cycle: BillingCycle.MONTHLY,
           monthly_fee: 0,
           is_active: true,
-          is_default_trial: true,
+          is_default_trial: false,
         }),
       );
 
       try {
+        await planRepo.update(baselineDefaultTrialPlan.id_subscription_plan, { is_default_trial: false });
+        await planRepo.update(newDefault.id_subscription_plan, { is_default_trial: true });
+
         const vendor = await onboardVendor();
         const trialSub = vendor.body.data.subscriptions.find((s: any) => s.is_trial);
-
-        expect(trialSub.is_trial).toBe(true);
-        expect(trialSub.status).toBe(SubscriptionStatus.ACTIVE);
-        expect(trialSub.plan.public_id).toBe(defaultPlan.public_id);
+        expect(trialSub.plan.public_id).toBe(newDefault.public_id);
       } finally {
-        // Don't let this leak into other tests in this file that assume no
-        // default trial plan is configured.
-        await planRepo.update(defaultPlan.id_subscription_plan, { is_default_trial: false });
+        await planRepo.update(newDefault.id_subscription_plan, { is_default_trial: false });
+        await planRepo.update(baselineDefaultTrialPlan.id_subscription_plan, { is_default_trial: true });
       }
     });
 
     it('does not retroactively change an already-onboarded vendor when the default trial plan later changes', async () => {
-      const before = await onboardVendor(); // onboarded while no default trial plan exists
+      const before = await onboardVendor(); // onboarded while baseline is still the default
 
-      const defaultPlan = await planRepo.save(
+      const newDefault = await planRepo.save(
         planRepo.create({
           name: 'Late-Configured Default Trial Plan',
           plan_type: PlanType.STARTER,
           billing_cycle: BillingCycle.MONTHLY,
           monthly_fee: 0,
           is_active: true,
+          is_default_trial: false,
+        }),
+      );
+
+      try {
+        await planRepo.update(baselineDefaultTrialPlan.id_subscription_plan, { is_default_trial: false });
+        await planRepo.update(newDefault.id_subscription_plan, { is_default_trial: true });
+
+        const single = await asAdmin(
+          request(app.getHttpServer()).get(`/api/v1/vendors/${before.body.data.public_id}`),
+        ).expect(200);
+        const trialSub = single.body.data.subscriptions.find((s: any) => s.is_trial);
+        expect(trialSub.plan.public_id).toBe(baselineDefaultTrialPlan.public_id);
+      } finally {
+        await planRepo.update(newDefault.id_subscription_plan, { is_default_trial: false });
+        await planRepo.update(baselineDefaultTrialPlan.id_subscription_plan, { is_default_trial: true });
+      }
+    });
+
+    it('rejects onboarding outright when no active, non-deleted default trial plan is configured', async () => {
+      try {
+        await planRepo.update(baselineDefaultTrialPlan.id_subscription_plan, { is_default_trial: false });
+
+        const res = await createVendor().expect(400);
+        expect(res.body.message).toMatch(/default trial plan/i);
+      } finally {
+        await planRepo.update(baselineDefaultTrialPlan.id_subscription_plan, { is_default_trial: true });
+      }
+    });
+
+    it('rejects onboarding when the only default-flagged plan is deactivated (is_active: false)', async () => {
+      const inactiveDefault = await planRepo.save(
+        planRepo.create({
+          name: 'Inactive Default Trial Plan',
+          plan_type: PlanType.STARTER,
+          billing_cycle: BillingCycle.MONTHLY,
+          monthly_fee: 0,
+          is_active: false,
           is_default_trial: true,
         }),
       );
 
       try {
-        const single = await asAdmin(
-          request(app.getHttpServer()).get(`/api/v1/vendors/${before.body.data.public_id}`),
-        ).expect(200);
-        const trialSub = single.body.data.subscriptions.find((s: any) => s.is_trial);
-        expect(trialSub.plan).toBeNull();
+        await planRepo.update(baselineDefaultTrialPlan.id_subscription_plan, { is_default_trial: false });
+
+        await createVendor().expect(400);
       } finally {
-        await planRepo.update(defaultPlan.id_subscription_plan, { is_default_trial: false });
+        await planRepo.update(inactiveDefault.id_subscription_plan, { is_default_trial: false });
+        await planRepo.update(baselineDefaultTrialPlan.id_subscription_plan, { is_default_trial: true });
+      }
+    });
+
+    it('rejects onboarding when the only default-flagged plan is soft-deleted', async () => {
+      const deletedDefault = await planRepo.save(
+        planRepo.create({
+          name: 'Deleted Default Trial Plan',
+          plan_type: PlanType.STARTER,
+          billing_cycle: BillingCycle.MONTHLY,
+          monthly_fee: 0,
+          is_active: true,
+          is_default_trial: true,
+          is_deleted: true,
+        }),
+      );
+
+      try {
+        await planRepo.update(baselineDefaultTrialPlan.id_subscription_plan, { is_default_trial: false });
+
+        await createVendor().expect(400);
+      } finally {
+        await planRepo.update(deletedDefault.id_subscription_plan, { is_default_trial: false });
+        await planRepo.update(baselineDefaultTrialPlan.id_subscription_plan, { is_default_trial: true });
+      }
+    });
+
+    it('documents current behavior: a rejected onboarding (no default plan) still leaves a vendor row behind, with no subscription and no owner account', async () => {
+      // create() saves the vendor row, THEN checks for a default trial plan
+      // and throws if none exists — the failure isn't atomic. The owner
+      // user and subscription writes (which come after the check) never
+      // happen, but the vendor row itself is already committed.
+      const payload = validVendorPayload();
+
+      try {
+        await planRepo.update(baselineDefaultTrialPlan.id_subscription_plan, { is_default_trial: false });
+
+        await createVendor(payload).expect(400);
+
+        const vendorRow = await vendorRepo.findOneBy({ subdomain: payload.subdomain });
+        expect(vendorRow).not.toBeNull();
+
+        const subscriptions = await subscriptionRepo.find({ where: { vendor_id: vendorRow!.id_vendor } });
+        expect(subscriptions).toHaveLength(0);
+
+        const ownerRow = await userRepo.findOneBy({ email: payload.owner_email });
+        expect(ownerRow).toBeNull();
+
+        // It's also visible via the list endpoint despite onboarding "failing".
+        const list = await asAdmin(request(app.getHttpServer()).get('/api/v1/vendors')).expect(200);
+        expect(list.body.data.some((v: any) => v.public_id === vendorRow!.public_id)).toBe(true);
+      } finally {
+        await planRepo.update(baselineDefaultTrialPlan.id_subscription_plan, { is_default_trial: true });
       }
     });
   });
