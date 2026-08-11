@@ -363,6 +363,28 @@ describe('Subscription Plans — /api/v1/subscription-plans (e2e)', () => {
       expect(ids).toContain(kept.body.data.public_id);
       expect(ids).not.toContain(deleted.public_id);
     });
+
+    it('orders by plan_type (STARTER, PRO, ENTERPRISE — MySQL ENUM definition order, not alphabetical) then monthly_fee ascending', async () => {
+      // plan_type is a MySQL `enum` column, so ASC ordering follows the
+      // enum's declared member order (STARTER, PRO, ENTERPRISE) rather than
+      // alphabetical order (which would put ENTERPRISE first) — a
+      // non-obvious, DB-column-type-dependent behavior worth locking down.
+      const enterprise = await onboardPlan({ plan_type: PlanType.ENTERPRISE, monthly_fee: 999 });
+      const starterCheap = await onboardPlan({ plan_type: PlanType.STARTER, monthly_fee: 99 });
+      const pro = await onboardPlan({ plan_type: PlanType.PRO, monthly_fee: 499 });
+      const starterExpensive = await onboardPlan({ plan_type: PlanType.STARTER, monthly_fee: 399 });
+
+      const res = await asAdmin(request(app.getHttpServer()).get('/api/v1/subscription-plans')).expect(200);
+      const ids = [
+        starterCheap.body.data.public_id,
+        starterExpensive.body.data.public_id,
+        pro.body.data.public_id,
+        enterprise.body.data.public_id,
+      ];
+      const relevantOrder = res.body.data.map((p: any) => p.public_id).filter((id: string) => ids.includes(id));
+
+      expect(relevantOrder).toEqual(ids);
+    });
   });
 
   describe('GET /subscription-plans/:id', () => {

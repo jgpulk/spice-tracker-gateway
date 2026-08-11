@@ -323,6 +323,113 @@ describe('Vendors — /api/v1/vendors (e2e)', () => {
       return createVendor({ not_a_real_field: 'x' }).expect(400);
     });
 
+    it('rejects missing required fields', async () => {
+      const res = await asAdmin(request(app.getHttpServer()).post('/api/v1/vendors')).send({}).expect(400);
+
+      for (const field of [
+        'name',
+        'subdomain',
+        'email',
+        'phone',
+        'address',
+        'city',
+        'state',
+        'pincode',
+        'business_reg_no',
+        'business_type',
+        'owner_name',
+        'owner_email',
+        'owner_password',
+      ]) {
+        expect(res.body.fields[field]).toBeDefined();
+      }
+    });
+
+    it('rejects a name shorter than 2, longer than 255, or non-string', async () => {
+      await createVendor({ name: 'X' }).expect(400);
+      await createVendor({ name: 'A'.repeat(256) }).expect(400);
+      await createVendor({ name: 12345 }).expect(400);
+    });
+
+    it('rejects a subdomain shorter than 2 or longer than 100 characters', async () => {
+      await createVendor({ subdomain: 'x' }).expect(400);
+      await createVendor({ subdomain: 'a'.repeat(101) }).expect(400);
+    });
+
+    it('rejects an invalid email format', async () => {
+      const res = await createVendor({ email: 'not-an-email' }).expect(400);
+      expect(res.body.fields.email).toBeDefined();
+    });
+
+    it('rejects a phone shorter than 7 or longer than 15 digits', async () => {
+      await createVendor({ phone: '123456' }).expect(400); // 6 digits
+      await createVendor({ phone: '1'.repeat(16) }).expect(400); // 16 digits
+    });
+
+    it('rejects an empty or overlong address', async () => {
+      await createVendor({ address: '' }).expect(400);
+      await createVendor({ address: 'A'.repeat(501) }).expect(400);
+    });
+
+    it('rejects a city/state with digits/symbols or longer than 100 characters', async () => {
+      await createVendor({ city: 'Idukki123' }).expect(400);
+      await createVendor({ city: 'A'.repeat(101) }).expect(400);
+      await createVendor({ state: 'Kerala!' }).expect(400);
+    });
+
+    it('rejects a country with digits/symbols when explicitly provided', async () => {
+      const res = await createVendor({ country: 'India123' }).expect(400);
+      expect(res.body.fields.country).toBeDefined();
+    });
+
+    it('rejects a pincode shorter than 4 or longer than 10 digits', async () => {
+      await createVendor({ pincode: '123' }).expect(400); // 3 digits
+      await createVendor({ pincode: '12345678901' }).expect(400); // 11 digits
+    });
+
+    it('rejects a business_reg_no shorter than 3, longer than 50, or with invalid characters', async () => {
+      await createVendor({ business_reg_no: 'AB' }).expect(400);
+      await createVendor({ business_reg_no: 'A'.repeat(51) }).expect(400);
+      await createVendor({ business_reg_no: 'GST@123!' }).expect(400);
+    });
+
+    it('rejects an empty or overlong business_type', async () => {
+      await createVendor({ business_type: '' }).expect(400);
+      await createVendor({ business_type: 'A'.repeat(256) }).expect(400);
+    });
+
+    it('rejects an owner_name shorter than 2 or longer than 255 characters', async () => {
+      await createVendor({ owner_name: 'X' }).expect(400);
+      await createVendor({ owner_name: 'A'.repeat(256) }).expect(400);
+    });
+
+    it('rejects an invalid owner_email format', async () => {
+      const res = await createVendor({ owner_email: 'not-an-email' }).expect(400);
+      expect(res.body.fields.owner_email).toBeDefined();
+    });
+
+    it('rejects an owner_password shorter than 8 characters', async () => {
+      const res = await createVendor({ owner_password: 'short1' }).expect(400);
+      expect(res.body.fields.owner_password).toBeDefined();
+    });
+
+    it('rejects an invalid onboarding_source enum value', async () => {
+      await createVendor({ onboarding_source: 'NOT_A_SOURCE' }).expect(400);
+    });
+
+    it('rejects a malformed (non-UUID) referred_by_vendor_public_id, even with REFERRAL source', async () => {
+      const res = await createVendor({
+        onboarding_source: OnboardingSource.REFERRAL,
+        referred_by_vendor_public_id: 'not-a-uuid',
+      }).expect(400);
+      expect(res.body.fields.referred_by_vendor_public_id).toBeDefined();
+    });
+
+    it('accepts values at the exact boundary lengths (name/subdomain/business_reg_no)', async () => {
+      await onboardVendor({ name: 'AB', subdomain: 'ab', business_reg_no: 'ABC' });
+      await onboardVendor({ name: 'C'.repeat(255), business_reg_no: 'D'.repeat(50) });
+    });
+
     it('rejects REFERRAL source missing referred_by_vendor_public_id', () => {
       return createVendor({ onboarding_source: OnboardingSource.REFERRAL }).expect(400);
     });
@@ -624,6 +731,96 @@ describe('Vendors — /api/v1/vendors (e2e)', () => {
       expect(res.body.fields.subdomain).toBeDefined();
       expect(res.body.fields.pincode).toBeDefined();
     });
+
+    it('rejects a name shorter than 2, longer than 255, or non-string', async () => {
+      const vendor = await onboardVendor();
+      const patch = (overrides: Record<string, unknown>) =>
+        asAdmin(request(app.getHttpServer()).patch(`/api/v1/vendors/${vendor.body.data.public_id}`)).send(
+          toUpdatePayload(vendor.body.data, overrides),
+        );
+
+      await patch({ name: 'X' }).expect(400);
+      await patch({ name: 'A'.repeat(256) }).expect(400);
+      await patch({ name: 12345 }).expect(400);
+    });
+
+    it('rejects a subdomain shorter than 2 or longer than 100 characters', async () => {
+      const vendor = await onboardVendor();
+      const patch = (overrides: Record<string, unknown>) =>
+        asAdmin(request(app.getHttpServer()).patch(`/api/v1/vendors/${vendor.body.data.public_id}`)).send(
+          toUpdatePayload(vendor.body.data, overrides),
+        );
+
+      await patch({ subdomain: 'x' }).expect(400);
+      await patch({ subdomain: 'a'.repeat(101) }).expect(400);
+    });
+
+    it('rejects an empty or overlong address', async () => {
+      const vendor = await onboardVendor();
+      const patch = (overrides: Record<string, unknown>) =>
+        asAdmin(request(app.getHttpServer()).patch(`/api/v1/vendors/${vendor.body.data.public_id}`)).send(
+          toUpdatePayload(vendor.body.data, overrides),
+        );
+
+      await patch({ address: '' }).expect(400);
+      await patch({ address: 'A'.repeat(501) }).expect(400);
+    });
+
+    it('rejects a city/state with digits/symbols or longer than 100 characters', async () => {
+      const vendor = await onboardVendor();
+      const patch = (overrides: Record<string, unknown>) =>
+        asAdmin(request(app.getHttpServer()).patch(`/api/v1/vendors/${vendor.body.data.public_id}`)).send(
+          toUpdatePayload(vendor.body.data, overrides),
+        );
+
+      await patch({ city: 'Idukki123' }).expect(400);
+      await patch({ city: 'A'.repeat(101) }).expect(400);
+      await patch({ state: 'Kerala!' }).expect(400);
+    });
+
+    it('rejects a country with digits/symbols when explicitly provided', async () => {
+      const vendor = await onboardVendor();
+      const res = await asAdmin(
+        request(app.getHttpServer()).patch(`/api/v1/vendors/${vendor.body.data.public_id}`),
+      )
+        .send(toUpdatePayload(vendor.body.data, { country: 'India123' }))
+        .expect(400);
+      expect(res.body.fields.country).toBeDefined();
+    });
+
+    it('rejects a pincode shorter than 4 or longer than 10 digits', async () => {
+      const vendor = await onboardVendor();
+      const patch = (overrides: Record<string, unknown>) =>
+        asAdmin(request(app.getHttpServer()).patch(`/api/v1/vendors/${vendor.body.data.public_id}`)).send(
+          toUpdatePayload(vendor.body.data, overrides),
+        );
+
+      await patch({ pincode: '123' }).expect(400);
+      await patch({ pincode: '12345678901' }).expect(400);
+    });
+
+    it('rejects a business_reg_no shorter than 3, longer than 50, or with invalid characters', async () => {
+      const vendor = await onboardVendor();
+      const patch = (overrides: Record<string, unknown>) =>
+        asAdmin(request(app.getHttpServer()).patch(`/api/v1/vendors/${vendor.body.data.public_id}`)).send(
+          toUpdatePayload(vendor.body.data, overrides),
+        );
+
+      await patch({ business_reg_no: 'AB' }).expect(400);
+      await patch({ business_reg_no: 'A'.repeat(51) }).expect(400);
+      await patch({ business_reg_no: 'GST@123!' }).expect(400);
+    });
+
+    it('rejects an empty or overlong business_type', async () => {
+      const vendor = await onboardVendor();
+      const patch = (overrides: Record<string, unknown>) =>
+        asAdmin(request(app.getHttpServer()).patch(`/api/v1/vendors/${vendor.body.data.public_id}`)).send(
+          toUpdatePayload(vendor.body.data, overrides),
+        );
+
+      await patch({ business_type: '' }).expect(400);
+      await patch({ business_type: 'A'.repeat(256) }).expect(400);
+    });
   });
 
   describe('PATCH /vendors/:id/activate', () => {
@@ -660,6 +857,25 @@ describe('Vendors — /api/v1/vendors (e2e)', () => {
         .send({ plan_public_id: 'not-a-uuid' })
         .expect(400);
       expect(res.body.fields.plan_public_id).toBeDefined();
+    });
+
+    it('rejects a missing plan_public_id', async () => {
+      const vendor = await onboardVendor();
+      const res = await asAdmin(
+        request(app.getHttpServer()).patch(`/api/v1/vendors/${vendor.body.data.public_id}/activate`),
+      )
+        .send({})
+        .expect(400);
+      expect(res.body.fields.plan_public_id).toBeDefined();
+    });
+
+    it('rejects an unknown field via forbidNonWhitelisted', async () => {
+      const vendor = await onboardVendor();
+      await asAdmin(
+        request(app.getHttpServer()).patch(`/api/v1/vendors/${vendor.body.data.public_id}/activate`),
+      )
+        .send({ plan_public_id: starterPlanPublicId, extra_field: 'nope' })
+        .expect(400);
     });
 
     it('rejects activation onto an unknown plan', async () => {
