@@ -25,6 +25,7 @@ describe('Vendors — GET /api/v1/vendors (list all, e2e)', () => {
   let vendorOwnerToken: string;
   let starterPlanPublicId: string;
   let proPlanPublicId: string;
+  let baselineDefaultTrialPlan: SubscriptionPlan;
   let uniqueCounter = 0;
 
   const ADMIN_NAME = 'E2E List Admin';
@@ -143,6 +144,20 @@ describe('Vendors — GET /api/v1/vendors (list all, e2e)', () => {
     );
     proPlanPublicId = proPlan.public_id;
 
+    // create() now REQUIRES an active, non-deleted default trial plan to
+    // exist — onboarding 400s otherwise. Every onboardVendor() call in this
+    // file needs this baseline in place.
+    baselineDefaultTrialPlan = await planRepo.save(
+      planRepo.create({
+        name: 'Baseline Default Trial Plan',
+        plan_type: PlanType.STARTER,
+        billing_cycle: BillingCycle.MONTHLY,
+        monthly_fee: 0,
+        is_active: true,
+        is_default_trial: true,
+      }),
+    );
+
     superAdminToken = (
       await request(app.getHttpServer())
         .post('/api/v1/auth/login')
@@ -240,7 +255,7 @@ describe('Vendors — GET /api/v1/vendors (list all, e2e)', () => {
   });
 
   describe('subscription (single active subscription, not the full history)', () => {
-    it('shows a fresh TRIAL vendor with is_trial true and no plan', async () => {
+    it('shows a fresh TRIAL vendor with is_trial true and the baseline default trial plan', async () => {
       const vendor = await onboardVendor();
       const list = await getList().expect(200);
       const item = findInList(list.body.data, vendor.body.data.public_id);
@@ -249,7 +264,10 @@ describe('Vendors — GET /api/v1/vendors (list all, e2e)', () => {
       expect(Object.keys(item.subscription).sort()).toEqual(['expires_at', 'is_trial', 'plan', 'status'].sort());
       expect(item.subscription.status).toBe(SubscriptionStatus.ACTIVE);
       expect(item.subscription.is_trial).toBe(true);
-      expect(item.subscription.plan).toBeNull();
+      expect(item.subscription.plan).toEqual({
+        name: baselineDefaultTrialPlan.name,
+        plan_type: baselineDefaultTrialPlan.plan_type,
+      });
       expect(item.subscription.expires_at).not.toBeNull();
     });
 
@@ -291,19 +309,23 @@ describe('Vendors — GET /api/v1/vendors (list all, e2e)', () => {
       expect(item.subscription).toBeNull();
     });
 
-    it('shows the configured default trial plan on a fresh trial vendor', async () => {
-      const defaultPlan = await planRepo.save(
+    it('switches to a newly-promoted default trial plan for new trial vendors', async () => {
+      const newDefault = await planRepo.save(
         planRepo.create({
           name: 'List View Default Trial Plan',
           plan_type: PlanType.ENTERPRISE,
           billing_cycle: BillingCycle.MONTHLY,
           monthly_fee: 0,
           is_active: true,
-          is_default_trial: true,
+          is_default_trial: false,
         }),
       );
 
       try {
+        // Only one plan can hold is_default_trial at a time — swap, don't stack.
+        await planRepo.update(baselineDefaultTrialPlan.id_subscription_plan, { is_default_trial: false });
+        await planRepo.update(newDefault.id_subscription_plan, { is_default_trial: true });
+
         const vendor = await onboardVendor();
         const list = await getList().expect(200);
         const item = findInList(list.body.data, vendor.body.data.public_id);
@@ -314,9 +336,10 @@ describe('Vendors — GET /api/v1/vendors (list all, e2e)', () => {
           plan_type: PlanType.ENTERPRISE,
         });
       } finally {
-        // Don't let this leak into other tests in this file that assume no
-        // default trial plan is configured.
-        await planRepo.update(defaultPlan.id_subscription_plan, { is_default_trial: false });
+        // Restore the baseline so every other onboardVendor() call in this
+        // file keeps working.
+        await planRepo.update(newDefault.id_subscription_plan, { is_default_trial: false });
+        await planRepo.update(baselineDefaultTrialPlan.id_subscription_plan, { is_default_trial: true });
       }
     });
   });

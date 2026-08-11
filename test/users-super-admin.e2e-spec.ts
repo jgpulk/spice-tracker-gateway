@@ -153,6 +153,13 @@ describe('Super admin creation — POST /api/v1/users/super-admin (e2e)', () => 
       expect(res.body.fields.name).toBeDefined();
     });
 
+    it('rejects a name longer than 255 characters', async () => {
+      const res = await createSuperAdminAs(superAdminToken, validPayload({ name: 'A'.repeat(256) })).expect(
+        400,
+      );
+      expect(res.body.fields.name).toBeDefined();
+    });
+
     it('rejects an invalid email format', async () => {
       const res = await createSuperAdminAs(superAdminToken, validPayload({ email: 'not-an-email' })).expect(
         400,
@@ -163,6 +170,16 @@ describe('Super admin creation — POST /api/v1/users/super-admin (e2e)', () => 
     it('rejects a password shorter than 8 characters', async () => {
       const res = await createSuperAdminAs(superAdminToken, validPayload({ password: 'short1' })).expect(400);
       expect(res.body.fields.password).toBeDefined();
+    });
+
+    it('rejects a non-string name with 400, not a 500 crash (transform runs before @IsString)', async () => {
+      const res = await createSuperAdminAs(superAdminToken, validPayload({ name: 12345 })).expect(400);
+      expect(res.body.fields.name).toBeDefined();
+    });
+
+    it('rejects a non-string email with 400, not a 500 crash', async () => {
+      const res = await createSuperAdminAs(superAdminToken, validPayload({ email: 12345 })).expect(400);
+      expect(res.body.fields.email).toBeDefined();
     });
 
     it('rejects unknown fields on the DTO (e.g. an explicit role)', () => {

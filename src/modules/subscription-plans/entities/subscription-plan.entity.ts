@@ -52,6 +52,9 @@ export class SubscriptionPlan {
   @Column({ default: false })
   is_default_trial: boolean;
 
+  @Column({ default: false })
+  is_deleted: boolean;
+
   @CreateDateColumn()
   created_at: Date;
 

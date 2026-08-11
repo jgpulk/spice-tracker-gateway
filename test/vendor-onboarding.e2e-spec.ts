@@ -22,6 +22,7 @@ describe('Vendors — /api/v1/vendors (e2e)', () => {
   let vendorOwnerToken: string;
   let starterPlanPublicId: string;
   let proPlanPublicId: string;
+  let baselineDefaultTrialPlan: SubscriptionPlan;
   let uniqueCounter = 0;
 
   const ADMIN_EMAIL = 'e2e-admin@spicewallet.test';
@@ -161,6 +162,22 @@ describe('Vendors — /api/v1/vendors (e2e)', () => {
     );
     proPlanPublicId = proPlan.public_id;
 
+    // create() now REQUIRES an active, non-deleted default trial plan to
+    // exist — onboarding 400s otherwise (see the "trial plan allocation"
+    // describe block below). Every other test in this file onboards vendors
+    // through the real API, so this baseline has to exist for the whole
+    // suite, not just the tests that care about plan allocation specifically.
+    baselineDefaultTrialPlan = await planRepo.save(
+      planRepo.create({
+        name: 'Baseline Default Trial Plan',
+        plan_type: PlanType.STARTER,
+        billing_cycle: BillingCycle.MONTHLY,
+        monthly_fee: 0,
+        is_active: true,
+        is_default_trial: true,
+      }),
+    );
+
     const ownedVendor = await vendorRepo.save(
       vendorRepo.create({ ...validVendorPayload(), status: VendorStatus.ACTIVE }),
     );
@@ -231,7 +248,10 @@ describe('Vendors — /api/v1/vendors (e2e)', () => {
       const trialSub = vendor.subscriptions[0];
       expect(trialSub.is_trial).toBe(true);
       expect(trialSub.status).toBe(SubscriptionStatus.ACTIVE);
-      expect(trialSub.plan).toBeNull();
+      // Onboarding now requires an active default trial plan to exist at
+      // all (see the "trial plan allocation" describe block below), so a
+      // fresh trial is always assigned to whatever that plan currently is.
+      expect(trialSub.plan.public_id).toBe(baselineDefaultTrialPlan.public_id);
 
       const days =
         (new Date(trialSub.end_date).getTime() - new Date(trialSub.start_date).getTime()) / 86_400_000;
@@ -301,6 +321,113 @@ describe('Vendors — /api/v1/vendors (e2e)', () => {
 
     it('rejects unknown fields not on the DTO', () => {
       return createVendor({ not_a_real_field: 'x' }).expect(400);
+    });
+
+    it('rejects missing required fields', async () => {
+      const res = await asAdmin(request(app.getHttpServer()).post('/api/v1/vendors')).send({}).expect(400);
+
+      for (const field of [
+        'name',
+        'subdomain',
+        'email',
+        'phone',
+        'address',
+        'city',
+        'state',
+        'pincode',
+        'business_reg_no',
+        'business_type',
+        'owner_name',
+        'owner_email',
+        'owner_password',
+      ]) {
+        expect(res.body.fields[field]).toBeDefined();
+      }
+    });
+
+    it('rejects a name shorter than 2, longer than 255, or non-string', async () => {
+      await createVendor({ name: 'X' }).expect(400);
+      await createVendor({ name: 'A'.repeat(256) }).expect(400);
+      await createVendor({ name: 12345 }).expect(400);
+    });
+
+    it('rejects a subdomain shorter than 2 or longer than 100 characters', async () => {
+      await createVendor({ subdomain: 'x' }).expect(400);
+      await createVendor({ subdomain: 'a'.repeat(101) }).expect(400);
+    });
+
+    it('rejects an invalid email format', async () => {
+      const res = await createVendor({ email: 'not-an-email' }).expect(400);
+      expect(res.body.fields.email).toBeDefined();
+    });
+
+    it('rejects a phone shorter than 7 or longer than 15 digits', async () => {
+      await createVendor({ phone: '123456' }).expect(400); // 6 digits
+      await createVendor({ phone: '1'.repeat(16) }).expect(400); // 16 digits
+    });
+
+    it('rejects an empty or overlong address', async () => {
+      await createVendor({ address: '' }).expect(400);
+      await createVendor({ address: 'A'.repeat(501) }).expect(400);
+    });
+
+    it('rejects a city/state with digits/symbols or longer than 100 characters', async () => {
+      await createVendor({ city: 'Idukki123' }).expect(400);
+      await createVendor({ city: 'A'.repeat(101) }).expect(400);
+      await createVendor({ state: 'Kerala!' }).expect(400);
+    });
+
+    it('rejects a country with digits/symbols when explicitly provided', async () => {
+      const res = await createVendor({ country: 'India123' }).expect(400);
+      expect(res.body.fields.country).toBeDefined();
+    });
+
+    it('rejects a pincode shorter than 4 or longer than 10 digits', async () => {
+      await createVendor({ pincode: '123' }).expect(400); // 3 digits
+      await createVendor({ pincode: '12345678901' }).expect(400); // 11 digits
+    });
+
+    it('rejects a business_reg_no shorter than 3, longer than 50, or with invalid characters', async () => {
+      await createVendor({ business_reg_no: 'AB' }).expect(400);
+      await createVendor({ business_reg_no: 'A'.repeat(51) }).expect(400);
+      await createVendor({ business_reg_no: 'GST@123!' }).expect(400);
+    });
+
+    it('rejects an empty or overlong business_type', async () => {
+      await createVendor({ business_type: '' }).expect(400);
+      await createVendor({ business_type: 'A'.repeat(256) }).expect(400);
+    });
+
+    it('rejects an owner_name shorter than 2 or longer than 255 characters', async () => {
+      await createVendor({ owner_name: 'X' }).expect(400);
+      await createVendor({ owner_name: 'A'.repeat(256) }).expect(400);
+    });
+
+    it('rejects an invalid owner_email format', async () => {
+      const res = await createVendor({ owner_email: 'not-an-email' }).expect(400);
+      expect(res.body.fields.owner_email).toBeDefined();
+    });
+
+    it('rejects an owner_password shorter than 8 characters', async () => {
+      const res = await createVendor({ owner_password: 'short1' }).expect(400);
+      expect(res.body.fields.owner_password).toBeDefined();
+    });
+
+    it('rejects an invalid onboarding_source enum value', async () => {
+      await createVendor({ onboarding_source: 'NOT_A_SOURCE' }).expect(400);
+    });
+
+    it('rejects a malformed (non-UUID) referred_by_vendor_public_id, even with REFERRAL source', async () => {
+      const res = await createVendor({
+        onboarding_source: OnboardingSource.REFERRAL,
+        referred_by_vendor_public_id: 'not-a-uuid',
+      }).expect(400);
+      expect(res.body.fields.referred_by_vendor_public_id).toBeDefined();
+    });
+
+    it('accepts values at the exact boundary lengths (name/subdomain/business_reg_no)', async () => {
+      await onboardVendor({ name: 'AB', subdomain: 'ab', business_reg_no: 'ABC' });
+      await onboardVendor({ name: 'C'.repeat(255), business_reg_no: 'D'.repeat(50) });
     });
 
     it('rejects REFERRAL source missing referred_by_vendor_public_id', () => {
@@ -604,6 +731,96 @@ describe('Vendors — /api/v1/vendors (e2e)', () => {
       expect(res.body.fields.subdomain).toBeDefined();
       expect(res.body.fields.pincode).toBeDefined();
     });
+
+    it('rejects a name shorter than 2, longer than 255, or non-string', async () => {
+      const vendor = await onboardVendor();
+      const patch = (overrides: Record<string, unknown>) =>
+        asAdmin(request(app.getHttpServer()).patch(`/api/v1/vendors/${vendor.body.data.public_id}`)).send(
+          toUpdatePayload(vendor.body.data, overrides),
+        );
+
+      await patch({ name: 'X' }).expect(400);
+      await patch({ name: 'A'.repeat(256) }).expect(400);
+      await patch({ name: 12345 }).expect(400);
+    });
+
+    it('rejects a subdomain shorter than 2 or longer than 100 characters', async () => {
+      const vendor = await onboardVendor();
+      const patch = (overrides: Record<string, unknown>) =>
+        asAdmin(request(app.getHttpServer()).patch(`/api/v1/vendors/${vendor.body.data.public_id}`)).send(
+          toUpdatePayload(vendor.body.data, overrides),
+        );
+
+      await patch({ subdomain: 'x' }).expect(400);
+      await patch({ subdomain: 'a'.repeat(101) }).expect(400);
+    });
+
+    it('rejects an empty or overlong address', async () => {
+      const vendor = await onboardVendor();
+      const patch = (overrides: Record<string, unknown>) =>
+        asAdmin(request(app.getHttpServer()).patch(`/api/v1/vendors/${vendor.body.data.public_id}`)).send(
+          toUpdatePayload(vendor.body.data, overrides),
+        );
+
+      await patch({ address: '' }).expect(400);
+      await patch({ address: 'A'.repeat(501) }).expect(400);
+    });
+
+    it('rejects a city/state with digits/symbols or longer than 100 characters', async () => {
+      const vendor = await onboardVendor();
+      const patch = (overrides: Record<string, unknown>) =>
+        asAdmin(request(app.getHttpServer()).patch(`/api/v1/vendors/${vendor.body.data.public_id}`)).send(
+          toUpdatePayload(vendor.body.data, overrides),
+        );
+
+      await patch({ city: 'Idukki123' }).expect(400);
+      await patch({ city: 'A'.repeat(101) }).expect(400);
+      await patch({ state: 'Kerala!' }).expect(400);
+    });
+
+    it('rejects a country with digits/symbols when explicitly provided', async () => {
+      const vendor = await onboardVendor();
+      const res = await asAdmin(
+        request(app.getHttpServer()).patch(`/api/v1/vendors/${vendor.body.data.public_id}`),
+      )
+        .send(toUpdatePayload(vendor.body.data, { country: 'India123' }))
+        .expect(400);
+      expect(res.body.fields.country).toBeDefined();
+    });
+
+    it('rejects a pincode shorter than 4 or longer than 10 digits', async () => {
+      const vendor = await onboardVendor();
+      const patch = (overrides: Record<string, unknown>) =>
+        asAdmin(request(app.getHttpServer()).patch(`/api/v1/vendors/${vendor.body.data.public_id}`)).send(
+          toUpdatePayload(vendor.body.data, overrides),
+        );
+
+      await patch({ pincode: '123' }).expect(400);
+      await patch({ pincode: '12345678901' }).expect(400);
+    });
+
+    it('rejects a business_reg_no shorter than 3, longer than 50, or with invalid characters', async () => {
+      const vendor = await onboardVendor();
+      const patch = (overrides: Record<string, unknown>) =>
+        asAdmin(request(app.getHttpServer()).patch(`/api/v1/vendors/${vendor.body.data.public_id}`)).send(
+          toUpdatePayload(vendor.body.data, overrides),
+        );
+
+      await patch({ business_reg_no: 'AB' }).expect(400);
+      await patch({ business_reg_no: 'A'.repeat(51) }).expect(400);
+      await patch({ business_reg_no: 'GST@123!' }).expect(400);
+    });
+
+    it('rejects an empty or overlong business_type', async () => {
+      const vendor = await onboardVendor();
+      const patch = (overrides: Record<string, unknown>) =>
+        asAdmin(request(app.getHttpServer()).patch(`/api/v1/vendors/${vendor.body.data.public_id}`)).send(
+          toUpdatePayload(vendor.body.data, overrides),
+        );
+
+      await patch({ business_type: '' }).expect(400);
+      await patch({ business_type: 'A'.repeat(256) }).expect(400);
+    });
   });
 
   describe('PATCH /vendors/:id/activate', () => {
@@ -642,6 +859,25 @@ describe('Vendors — /api/v1/vendors (e2e)', () => {
       expect(res.body.fields.plan_public_id).toBeDefined();
     });
 
+    it('rejects a missing plan_public_id', async () => {
+      const vendor = await onboardVendor();
+      const res = await asAdmin(
+        request(app.getHttpServer()).patch(`/api/v1/vendors/${vendor.body.data.public_id}/activate`),
+      )
+        .send({})
+        .expect(400);
+      expect(res.body.fields.plan_public_id).toBeDefined();
+    });
+
+    it('rejects an unknown field via forbidNonWhitelisted', async () => {
+      const vendor = await onboardVendor();
+      await asAdmin(
+        request(app.getHttpServer()).patch(`/api/v1/vendors/${vendor.body.data.public_id}/activate`),
+      )
+        .send({ plan_public_id: starterPlanPublicId, extra_field: 'nope' })
+        .expect(400);
+    });
+
     it('rejects activation onto an unknown plan', async () => {
       const vendor = await onboardVendor();
 
@@ -672,6 +908,32 @@ describe('Vendors — /api/v1/vendors (e2e)', () => {
       expect(res.body.message).toMatch(/deactivated/i);
 
       // Vendor must remain untouched — no partial activation.
+      const single = await asAdmin(
+        request(app.getHttpServer()).get(`/api/v1/vendors/${vendor.body.data.public_id}`),
+      ).expect(200);
+      expect(single.body.data.status).toBe(VendorStatus.TRIAL);
+    });
+
+    it('404s (not 400) activating onto a soft-deleted plan — SubscriptionPlansService.findRaw() excludes deleted plans entirely', async () => {
+      const deletedPlan = await planRepo.save(
+        planRepo.create({
+          name: 'Deleted Plan',
+          plan_type: PlanType.STARTER,
+          billing_cycle: BillingCycle.MONTHLY,
+          monthly_fee: 199,
+          is_active: true,
+          is_deleted: true,
+        }),
+      );
+      const vendor = await onboardVendor();
+
+      const res = await asAdmin(
+        request(app.getHttpServer()).patch(`/api/v1/vendors/${vendor.body.data.public_id}/activate`),
+      )
+        .send({ plan_public_id: deletedPlan.public_id })
+        .expect(404);
+      expect(res.body.message).toMatch(/not found/i);
+
       const single = await asAdmin(
         request(app.getHttpServer()).get(`/api/v1/vendors/${vendor.body.data.public_id}`),
       ).expect(200);
@@ -775,63 +1037,157 @@ describe('Vendors — /api/v1/vendors (e2e)', () => {
   });
 
   describe('trial plan allocation', () => {
-    it("leaves the trial subscription plan-less when no plan is flagged as the default trial", async () => {
-      // None of this file's fixture plans (starterPlanPublicId/proPlanPublicId)
-      // are ever flagged is_default_trial, so this is the baseline behavior.
+    // create() now REQUIRES an active, non-deleted default trial plan to
+    // exist at all — onboarding 400s otherwise (see below). The whole file
+    // relies on baselineDefaultTrialPlan (set up in beforeAll) for every
+    // other test's onboardVendor() calls to keep working, so these tests
+    // always restore it in a `finally` before moving on.
+
+    it("assigns the currently-configured default trial plan to a new vendor's trial", async () => {
       const vendor = await onboardVendor();
       const trialSub = vendor.body.data.subscriptions.find((s: any) => s.is_trial);
 
-      expect(trialSub.plan).toBeNull();
+      expect(trialSub.is_trial).toBe(true);
+      expect(trialSub.status).toBe(SubscriptionStatus.ACTIVE);
+      expect(trialSub.plan.public_id).toBe(baselineDefaultTrialPlan.public_id);
     });
 
-    it("assigns the currently-configured default trial plan to a new vendor's trial", async () => {
-      const defaultPlan = await planRepo.save(
+    it('switches new vendors over to a newly-promoted default trial plan', async () => {
+      const newDefault = await planRepo.save(
         planRepo.create({
-          name: 'Onboarding Default Trial Plan',
+          name: 'Newly Promoted Default Trial Plan',
           plan_type: PlanType.STARTER,
           billing_cycle: BillingCycle.MONTHLY,
           monthly_fee: 0,
           is_active: true,
-          is_default_trial: true,
+          is_default_trial: false,
         }),
       );
 
       try {
+        await planRepo.update(baselineDefaultTrialPlan.id_subscription_plan, { is_default_trial: false });
+        await planRepo.update(newDefault.id_subscription_plan, { is_default_trial: true });
+
         const vendor = await onboardVendor();
         const trialSub = vendor.body.data.subscriptions.find((s: any) => s.is_trial);
-
-        expect(trialSub.is_trial).toBe(true);
-        expect(trialSub.status).toBe(SubscriptionStatus.ACTIVE);
-        expect(trialSub.plan.public_id).toBe(defaultPlan.public_id);
+        expect(trialSub.plan.public_id).toBe(newDefault.public_id);
       } finally {
-        // Don't let this leak into other tests in this file that assume no
-        // default trial plan is configured.
-        await planRepo.update(defaultPlan.id_subscription_plan, { is_default_trial: false });
+        await planRepo.update(newDefault.id_subscription_plan, { is_default_trial: false });
+        await planRepo.update(baselineDefaultTrialPlan.id_subscription_plan, { is_default_trial: true });
       }
     });
 
     it('does not retroactively change an already-onboarded vendor when the default trial plan later changes', async () => {
-      const before = await onboardVendor(); // onboarded while no default trial plan exists
+      const before = await onboardVendor(); // onboarded while baseline is still the default
 
-      const defaultPlan = await planRepo.save(
+      const newDefault = await planRepo.save(
         planRepo.create({
           name: 'Late-Configured Default Trial Plan',
           plan_type: PlanType.STARTER,
           billing_cycle: BillingCycle.MONTHLY,
           monthly_fee: 0,
           is_active: true,
+          is_default_trial: false,
+        }),
+      );
+
+      try {
+        await planRepo.update(baselineDefaultTrialPlan.id_subscription_plan, { is_default_trial: false });
+        await planRepo.update(newDefault.id_subscription_plan, { is_default_trial: true });
+
+        const single = await asAdmin(
+          request(app.getHttpServer()).get(`/api/v1/vendors/${before.body.data.public_id}`),
+        ).expect(200);
+        const trialSub = single.body.data.subscriptions.find((s: any) => s.is_trial);
+        expect(trialSub.plan.public_id).toBe(baselineDefaultTrialPlan.public_id);
+      } finally {
+        await planRepo.update(newDefault.id_subscription_plan, { is_default_trial: false });
+        await planRepo.update(baselineDefaultTrialPlan.id_subscription_plan, { is_default_trial: true });
+      }
+    });
+
+    it('rejects onboarding outright when no active, non-deleted default trial plan is configured', async () => {
+      try {
+        await planRepo.update(baselineDefaultTrialPlan.id_subscription_plan, { is_default_trial: false });
+
+        const res = await createVendor().expect(400);
+        expect(res.body.message).toMatch(/default trial plan/i);
+      } finally {
+        await planRepo.update(baselineDefaultTrialPlan.id_subscription_plan, { is_default_trial: true });
+      }
+    });
+
+    it('rejects onboarding when the only default-flagged plan is deactivated (is_active: false)', async () => {
+      const inactiveDefault = await planRepo.save(
+        planRepo.create({
+          name: 'Inactive Default Trial Plan',
+          plan_type: PlanType.STARTER,
+          billing_cycle: BillingCycle.MONTHLY,
+          monthly_fee: 0,
+          is_active: false,
           is_default_trial: true,
         }),
       );
 
       try {
-        const single = await asAdmin(
-          request(app.getHttpServer()).get(`/api/v1/vendors/${before.body.data.public_id}`),
-        ).expect(200);
-        const trialSub = single.body.data.subscriptions.find((s: any) => s.is_trial);
-        expect(trialSub.plan).toBeNull();
+        await planRepo.update(baselineDefaultTrialPlan.id_subscription_plan, { is_default_trial: false });
+
+        await createVendor().expect(400);
       } finally {
-        await planRepo.update(defaultPlan.id_subscription_plan, { is_default_trial: false });
+        await planRepo.update(inactiveDefault.id_subscription_plan, { is_default_trial: false });
+        await planRepo.update(baselineDefaultTrialPlan.id_subscription_plan, { is_default_trial: true });
+      }
+    });
+
+    it('rejects onboarding when the only default-flagged plan is soft-deleted', async () => {
+      const deletedDefault = await planRepo.save(
+        planRepo.create({
+          name: 'Deleted Default Trial Plan',
+          plan_type: PlanType.STARTER,
+          billing_cycle: BillingCycle.MONTHLY,
+          monthly_fee: 0,
+          is_active: true,
+          is_default_trial: true,
+          is_deleted: true,
+        }),
+      );
+
+      try {
+        await planRepo.update(baselineDefaultTrialPlan.id_subscription_plan, { is_default_trial: false });
+
+        await createVendor().expect(400);
+      } finally {
+        await planRepo.update(deletedDefault.id_subscription_plan, { is_default_trial: false });
+        await planRepo.update(baselineDefaultTrialPlan.id_subscription_plan, { is_default_trial: true });
+      }
+    });
+
+    it('documents current behavior: a rejected onboarding (no default plan) still leaves a vendor row behind, with no subscription and no owner account', async () => {
+      // create() saves the vendor row, THEN checks for a default trial plan
+      // and throws if none exists — the failure isn't atomic. The owner
+      // user and subscription writes (which come after the check) never
+      // happen, but the vendor row itself is already committed.
+      const payload = validVendorPayload();
+
+      try {
+        await planRepo.update(baselineDefaultTrialPlan.id_subscription_plan, { is_default_trial: false });
+
+        await createVendor(payload).expect(400);
+
+        const vendorRow = await vendorRepo.findOneBy({ subdomain: payload.subdomain });
+        expect(vendorRow).not.toBeNull();
+
+        const subscriptions = await subscriptionRepo.find({ where: { vendor_id: vendorRow!.id_vendor } });
+        expect(subscriptions).toHaveLength(0);
+
+        const ownerRow = await userRepo.findOneBy({ email: payload.owner_email });
+        expect(ownerRow).toBeNull();
+
+        // It's also visible via the list endpoint despite onboarding "failing".
+        const list = await asAdmin(request(app.getHttpServer()).get('/api/v1/vendors')).expect(200);
+        expect(list.body.data.some((v: any) => v.public_id === vendorRow!.public_id)).toBe(true);
+      } finally {
+        await planRepo.update(baselineDefaultTrialPlan.id_subscription_plan, { is_default_trial: true });
       }
     });
   });

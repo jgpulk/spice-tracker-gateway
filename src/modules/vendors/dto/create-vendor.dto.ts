@@ -11,6 +11,7 @@ import {
   MinLength,
 } from 'class-validator';
 import { Transform } from 'class-transformer';
+import { trim, trimLower, trimUpper } from '../../../common/transforms/string.transform';
 import { OnboardingSource } from '../entities/vendor.entity';
 
 export class CreateVendorDto {
@@ -20,7 +21,7 @@ export class CreateVendorDto {
   @IsNotEmpty()
   @MinLength(2)
   @MaxLength(255)
-  @Transform(({ value }) => value?.trim())
+  @Transform(trim)
   name: string;
 
   @ApiProperty({ example: 'green-cardamom', description: 'Unique URL-safe subdomain (lowercase letters, numbers, hyphens only)' })
@@ -37,7 +38,7 @@ export class CreateVendorDto {
   @ApiProperty({ example: 'shop@greencardamom.com' })
   @IsEmail({}, { message: 'email must be a valid email address' })
   @MaxLength(255)
-  @Transform(({ value }) => value?.trim().toLowerCase())
+  @Transform(trimLower)
   email: string;
 
   @ApiProperty({ example: '+919876543210', description: 'Valid phone number with optional + country code' })
@@ -51,7 +52,7 @@ export class CreateVendorDto {
   @IsString()
   @IsNotEmpty()
   @MaxLength(500)
-  @Transform(({ value }) => value?.trim())
+  @Transform(trim)
   address: string;
 
   @ApiProperty({ example: 'Idukki' })
@@ -59,7 +60,7 @@ export class CreateVendorDto {
   @IsNotEmpty()
   @MaxLength(100)
   @Matches(/^[a-zA-Z\s\-'.]+$/, { message: 'city must contain only letters, spaces, hyphens, or apostrophes' })
-  @Transform(({ value }) => value?.trim())
+  @Transform(trim)
   city: string;
 
   @ApiProperty({ example: 'Kerala' })
@@ -67,7 +68,7 @@ export class CreateVendorDto {
   @IsNotEmpty()
   @MaxLength(100)
   @Matches(/^[a-zA-Z\s\-'.]+$/, { message: 'state must contain only letters, spaces, hyphens, or apostrophes' })
-  @Transform(({ value }) => value?.trim())
+  @Transform(trim)
   state: string;
 
   @ApiPropertyOptional({ example: 'India', default: 'India' })
@@ -75,7 +76,7 @@ export class CreateVendorDto {
   @IsOptional()
   @MaxLength(100)
   @Matches(/^[a-zA-Z\s\-'.]+$/, { message: 'country must contain only letters, spaces, hyphens, or apostrophes' })
-  @Transform(({ value }) => value?.trim())
+  @Transform(trim)
   country?: string;
 
   @ApiProperty({ example: '685602', description: '4–10 digit postal code' })
@@ -90,7 +91,7 @@ export class CreateVendorDto {
   @Matches(/^[A-Za-z0-9\-/]{3,50}$/, {
     message: 'business_reg_no must be alphanumeric (letters, digits, hyphens, slashes)',
   })
-  @Transform(({ value }) => value?.trim().toUpperCase())
+  @Transform(trimUpper)
   business_reg_no: string;
 
   @ApiProperty({
@@ -100,7 +101,7 @@ export class CreateVendorDto {
   @IsString()
   @IsNotEmpty()
   @MaxLength(255)
-  @Transform(({ value }) => value?.trim())
+  @Transform(trim)
   business_type: string;
 
   // --- Owner account (used only on creation, ignored on update) ---
@@ -109,13 +110,13 @@ export class CreateVendorDto {
   @IsNotEmpty()
   @MinLength(2)
   @MaxLength(255)
-  @Transform(({ value }) => value?.trim())
+  @Transform(trim)
   owner_name: string;
 
   @ApiProperty({ example: 'ravi@greencardamom.com', description: 'Login email for the vendor owner account' })
   @IsEmail({}, { message: 'owner_email must be a valid email address' })
   @MaxLength(255)
-  @Transform(({ value }) => value?.trim().toLowerCase())
+  @Transform(trimLower)
   owner_email: string;
 
   @ApiProperty({ example: 'Secret@123', minLength: 8, description: 'Password for the vendor owner login' })
