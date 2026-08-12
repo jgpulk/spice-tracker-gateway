@@ -18,110 +18,107 @@ export class CreateVendorDto {
   // --- Shop identity ---
   @ApiProperty({ example: 'Green Cardamom Shop' })
   @IsString()
-  @IsNotEmpty()
-  @MinLength(2)
   @MaxLength(255)
+  @MinLength(2)
+  @IsNotEmpty()
   @Transform(trim)
   name: string;
 
   @ApiProperty({ example: 'green-cardamom', description: 'Unique URL-safe subdomain (lowercase letters, numbers, hyphens only)' })
   @IsString()
-  @IsNotEmpty()
-  @MinLength(2)
   @MaxLength(100)
-  @Matches(/^[a-z0-9-]+$/, {
-    message: 'subdomain must contain only lowercase letters, numbers, and hyphens',
-  })
+  @MinLength(2)
+  @Matches(/^[a-z0-9-]+$/, { message: 'subdomain must contain only lowercase letters, numbers, and hyphens' })
+  @IsNotEmpty()
   subdomain: string;
 
   // --- Contact ---
   @ApiProperty({ example: 'shop@greencardamom.com' })
-  @IsEmail({}, { message: 'email must be a valid email address' })
   @MaxLength(255)
+  @IsEmail({}, { message: 'email must be a valid email address' })
+  @IsNotEmpty()
   @Transform(trimLower)
   email: string;
 
   @ApiProperty({ example: '+919876543210', description: 'Valid phone number with optional + country code' })
-  @Matches(/^\+?[0-9]{7,15}$/, {
-    message: 'phone must contain only digits with an optional leading + (e.g. +919876543210)',
-  })
+  @Matches(/^\+?[0-9]{7,15}$/, { message: 'phone must contain only digits with an optional leading + (e.g. +919876543210)' })
+  @IsNotEmpty()
   phone: string;
 
   // --- Address ---
   @ApiProperty({ example: '42, Market Street, Idukki' })
   @IsString()
-  @IsNotEmpty()
   @MaxLength(500)
+  @IsNotEmpty()
   @Transform(trim)
   address: string;
 
   @ApiProperty({ example: 'Idukki' })
   @IsString()
-  @IsNotEmpty()
   @MaxLength(100)
   @Matches(/^[a-zA-Z\s\-'.]+$/, { message: 'city must contain only letters, spaces, hyphens, or apostrophes' })
+  @IsNotEmpty()
   @Transform(trim)
   city: string;
 
   @ApiProperty({ example: 'Kerala' })
   @IsString()
-  @IsNotEmpty()
   @MaxLength(100)
   @Matches(/^[a-zA-Z\s\-'.]+$/, { message: 'state must contain only letters, spaces, hyphens, or apostrophes' })
+  @IsNotEmpty()
   @Transform(trim)
   state: string;
 
-  @ApiPropertyOptional({ example: 'India', default: 'India' })
+  @ApiProperty({ example: 'India' })
   @IsString()
-  @IsOptional()
   @MaxLength(100)
-  @Matches(/^[a-zA-Z\s\-'.]+$/, { message: 'country must contain only letters, spaces, hyphens, or apostrophes' })
+  @Matches(/^[a-zA-Z\s\-'.]+$/, {
+    message:
+      'country must contain only letters, spaces, hyphens, or apostrophes',
+  })
+  @IsNotEmpty()
   @Transform(trim)
-  country?: string;
+  country: string;
 
   @ApiProperty({ example: '685602', description: '4–10 digit postal code' })
   @Matches(/^[0-9]{4,10}$/, { message: 'pincode must contain only digits (4–10 digits)' })
+  @IsNotEmpty()
   pincode: string;
 
   // --- Business details ---
-  @ApiProperty({
-    example: '29ABCDE1234F1Z5',
-    description: 'GST or business registration number (alphanumeric, 3–50 chars)',
-  })
-  @Matches(/^[A-Za-z0-9\-/]{3,50}$/, {
-    message: 'business_reg_no must be alphanumeric (letters, digits, hyphens, slashes)',
-  })
+  @ApiProperty({ example: '29ABCDE1234F1Z5', description: 'GST or business registration number (alphanumeric, 3–50 chars)' })
+  @Matches(/^[A-Za-z0-9\-/]{3,50}$/, { message: 'business_reg_no must be alphanumeric (letters, digits, hyphens, slashes)' })
+  @IsNotEmpty()
   @Transform(trimUpper)
   business_reg_no: string;
 
-  @ApiProperty({
-    example: 'Sole Proprietorship',
-    description: 'e.g. Sole Proprietorship, Partnership, Private Limited',
-  })
+  @ApiProperty({ example: 'Sole Proprietorship', description: 'e.g. Sole Proprietorship, Partnership, Private Limited' })
   @IsString()
-  @IsNotEmpty()
   @MaxLength(255)
+  @IsNotEmpty()
   @Transform(trim)
   business_type: string;
 
-  // --- Owner account (used only on creation, ignored on update) ---
+  // --- Owner account (used only on creation) ---
   @ApiProperty({ example: 'Ravi Kumar', description: 'Name of the vendor owner' })
   @IsString()
-  @IsNotEmpty()
-  @MinLength(2)
   @MaxLength(255)
+  @MinLength(2)
+  @IsNotEmpty()
   @Transform(trim)
   owner_name: string;
 
   @ApiProperty({ example: 'ravi@greencardamom.com', description: 'Login email for the vendor owner account' })
-  @IsEmail({}, { message: 'owner_email must be a valid email address' })
   @MaxLength(255)
+  @IsEmail({}, { message: 'owner_email must be a valid email address' })
+  @IsNotEmpty()
   @Transform(trimLower)
   owner_email: string;
 
   @ApiProperty({ example: 'Secret@123', minLength: 8, description: 'Password for the vendor owner login' })
   @IsString()
   @MinLength(8)
+  @IsNotEmpty()
   owner_password: string;
 
   // --- Onboarding tracking ---

@@ -167,6 +167,15 @@ describe('Super admin creation — POST /api/v1/users/super-admin (e2e)', () => 
       expect(res.body.fields.email).toBeDefined();
     });
 
+    it('rejects an email longer than 255 characters (matches the users.email column length)', async () => {
+      const overlongEmail = `${'a'.repeat(250)}@x.com`; // syntactically valid, 256 chars
+      const res = await createSuperAdminAs(
+        superAdminToken,
+        validPayload({ email: overlongEmail }),
+      ).expect(400);
+      expect(res.body.fields.email).toBeDefined();
+    });
+
     it('rejects a password shorter than 8 characters', async () => {
       const res = await createSuperAdminAs(superAdminToken, validPayload({ password: 'short1' })).expect(400);
       expect(res.body.fields.password).toBeDefined();

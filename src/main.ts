@@ -17,6 +17,7 @@ async function bootstrap() {
       whitelist: true,
       forbidNonWhitelisted: true,
       transform: true,
+      stopAtFirstError: true,
       exceptionFactory: (errors) => {
         const fields: Record<string, string[]> = {};
         for (const error of errors) {

@@ -6,20 +6,22 @@ import { Role } from '../../../common/enums/role.enum';
 export class CreateUserDto {
   @ApiProperty({ example: 'John Doe' })
   @IsString()
-  @IsNotEmpty()
-  @MinLength(2)
   @MaxLength(255)
+  @MinLength(2)
+  @IsNotEmpty()
   @Transform(({ value }) => value?.trim())
   name: string;
 
   @ApiProperty({ example: 'staff@shop.com' })
   @IsEmail()
+  @IsNotEmpty()
   @Transform(({ value }) => value?.trim().toLowerCase())
   email: string;
 
   @ApiProperty({ example: 'secret123', minLength: 6 })
   @IsString()
   @MinLength(6)
+  @IsNotEmpty()
   password: string;
 
   @ApiProperty({ enum: Role, example: Role.WAREHOUSE_STAFF })
