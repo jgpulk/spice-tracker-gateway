@@ -40,6 +40,7 @@ describe('Vendors — /api/v1/vendors (e2e)', () => {
       address: '42, Market Street, Idukki',
       city: 'Idukki',
       state: 'Kerala',
+      country: 'India',
       pincode: '685602',
       business_reg_no: `29ABCDE${String(n).padStart(4, '0')}Z5`,
       business_type: 'Sole Proprietorship',
@@ -77,6 +78,7 @@ describe('Vendors — /api/v1/vendors (e2e)', () => {
       address: '99, Updated Street',
       city: 'Kochi',
       state: 'Kerala',
+      country: 'India',
       pincode: '682001',
       business_reg_no: `29UPDATED${String(n).padStart(4, '0')}`,
       business_type: 'Sole Proprietorship',
@@ -242,7 +244,7 @@ describe('Vendors — /api/v1/vendors (e2e)', () => {
       expect(vendor.public_id).toBeDefined();
       expect(vendor.status).toBe(VendorStatus.TRIAL);
       expect(vendor.onboarding_source).toBe(OnboardingSource.SUPER_ADMIN);
-      expect(vendor.country).toBe('India'); // default applied
+      expect(vendor.country).toBe('India');
       expect(vendor.subscriptions).toHaveLength(1);
 
       const trialSub = vendor.subscriptions[0];
@@ -334,6 +336,7 @@ describe('Vendors — /api/v1/vendors (e2e)', () => {
         'address',
         'city',
         'state',
+        'country',
         'pincode',
         'business_reg_no',
         'business_type',
@@ -377,7 +380,9 @@ describe('Vendors — /api/v1/vendors (e2e)', () => {
       await createVendor({ state: 'Kerala!' }).expect(400);
     });
 
-    it('rejects a country with digits/symbols when explicitly provided', async () => {
+    it('rejects an empty, overlong, or invalid country — required, no more silent India default', async () => {
+      await createVendor({ country: '' }).expect(400);
+      await createVendor({ country: 'A'.repeat(101) }).expect(400);
       const res = await createVendor({ country: 'India123' }).expect(400);
       expect(res.body.fields.country).toBeDefined();
     });
@@ -646,14 +651,14 @@ describe('Vendors — /api/v1/vendors (e2e)', () => {
       expect(single.body.data.city).toBe('Changed City');
     });
 
-    it('applies the default country when omitted', async () => {
+    it('rejects a request with country omitted — required, no more silent India default', async () => {
       const vendor = await onboardVendor();
       const { country: _omit, ...withoutCountry } = toUpdatePayload(vendor.body.data);
 
       const res = await asAdmin(request(app.getHttpServer()).patch(`/api/v1/vendors/${vendor.body.data.public_id}`))
         .send(withoutCountry)
-        .expect(200);
-      expect(res.body.data.country).toBe('India');
+        .expect(400);
+      expect(res.body.fields.country).toBeDefined();
     });
 
     it('rejects updating to a subdomain already used by another vendor', async () => {
@@ -717,6 +722,7 @@ describe('Vendors — /api/v1/vendors (e2e)', () => {
       expect(res.body.fields.address).toBeDefined();
       expect(res.body.fields.city).toBeDefined();
       expect(res.body.fields.state).toBeDefined();
+      expect(res.body.fields.country).toBeDefined();
       expect(res.body.fields.pincode).toBeDefined();
       expect(res.body.fields.business_reg_no).toBeDefined();
       expect(res.body.fields.business_type).toBeDefined();
@@ -778,13 +784,16 @@ describe('Vendors — /api/v1/vendors (e2e)', () => {
       await patch({ state: 'Kerala!' }).expect(400);
     });
 
-    it('rejects a country with digits/symbols when explicitly provided', async () => {
+    it('rejects an empty, overlong, or invalid country', async () => {
       const vendor = await onboardVendor();
-      const res = await asAdmin(
-        request(app.getHttpServer()).patch(`/api/v1/vendors/${vendor.body.data.public_id}`),
-      )
-        .send(toUpdatePayload(vendor.body.data, { country: 'India123' }))
-        .expect(400);
+      const patch = (overrides: Record<string, unknown>) =>
+        asAdmin(request(app.getHttpServer()).patch(`/api/v1/vendors/${vendor.body.data.public_id}`)).send(
+          toUpdatePayload(vendor.body.data, overrides),
+        );
+
+      await patch({ country: '' }).expect(400);
+      await patch({ country: 'A'.repeat(101) }).expect(400);
+      const res = await patch({ country: 'India123' }).expect(400);
       expect(res.body.fields.country).toBeDefined();
     });
 

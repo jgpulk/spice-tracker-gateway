@@ -44,6 +44,7 @@ describe('Vendors — GET /api/v1/vendors (list all, e2e)', () => {
       address: '1 Test Street',
       city: 'Kochi',
       state: 'Kerala',
+      country: 'India',
       pincode: '682001',
       business_reg_no: `29LISTTEST${String(n).padStart(4, '0')}`,
       business_type: 'Sole Proprietorship',

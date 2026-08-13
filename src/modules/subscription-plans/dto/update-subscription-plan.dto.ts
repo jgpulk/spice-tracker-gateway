@@ -5,13 +5,14 @@ import { PlanType } from '../entities/subscription-plan.entity';
 export class UpdateSubscriptionPlanDto {
   @ApiProperty({ example: 'Starter Monthly' })
   @IsString()
-  @IsNotEmpty()
-  @MinLength(2)
   @MaxLength(100)
+  @MinLength(2)
+  @IsNotEmpty()
   name: string;
 
   @ApiProperty({ enum: PlanType, example: PlanType.STARTER })
   @IsEnum(PlanType)
+  @IsNotEmpty()
   plan_type: PlanType;
 
   @ApiPropertyOptional({ example: 'Basic plan with up to 500 batches/month' })
@@ -21,5 +22,6 @@ export class UpdateSubscriptionPlanDto {
 
   @ApiProperty({ example: true })
   @IsBoolean()
+  @IsNotEmpty()
   is_active: boolean;
 }

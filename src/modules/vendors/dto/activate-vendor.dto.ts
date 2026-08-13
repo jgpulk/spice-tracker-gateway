@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsUUID } from 'class-validator';
+import { IsNotEmpty, IsUUID } from 'class-validator';
 
 export class ActivateVendorDto {
   @ApiProperty({
@@ -7,5 +7,6 @@ export class ActivateVendorDto {
     description: 'public_id of the subscription plan to assign (from /subscription-plans)',
   })
   @IsUUID()
+  @IsNotEmpty()
   plan_public_id: string;
 }
