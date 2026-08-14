@@ -9,6 +9,7 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { ResponseMessage } from '../../common/decorators/response-message.decorator';
 import { CreateVendorDto } from './dto/create-vendor.dto';
 import { UpdateVendorDto } from './dto/update-vendor.dto';
+import { UpdateVendorProfileDto } from './dto/update-vendor-profile.dto';
 import { ActivateVendorDto } from './dto/activate-vendor.dto';
 
 @ApiTags('Vendors')
@@ -37,6 +38,22 @@ export class VendorsController {
   })
   async create(@Body() body: CreateVendorDto, @CurrentUser() user: any) {
     await this.vendorsService.create(body, user.id_user);
+  }
+
+  @Roles(Role.VENDOR_OWNER)
+  @Get('me')
+  @ResponseMessage('Vendor profile fetched successfully')
+  @ApiOperation({ summary: 'Get own vendor profile (Vendor Owner only)' })
+  getMyProfile(@CurrentUser() user: any) {
+    return this.vendorsService.findOneByVendorId(user.vendor_id);
+  }
+
+  @Roles(Role.VENDOR_OWNER)
+  @Patch('me')
+  @ResponseMessage('Vendor profile updated successfully')
+  @ApiOperation({ summary: 'Update own vendor profile (Vendor Owner only)' })
+  updateMyProfile(@Body() body: UpdateVendorProfileDto, @CurrentUser() user: any) {
+    return this.vendorsService.updateProfile(user.vendor_id, body);
   }
 
   @Roles(Role.SUPER_ADMIN)

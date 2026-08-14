@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Body, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { UsersService } from './users.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -9,6 +9,7 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { ResponseMessage } from '../../common/decorators/response-message.decorator';
 import { CreateUserDto } from './dto/create-user.dto';
 import { CreateSuperAdminDto } from './dto/create-super-admin.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 
 @ApiTags('Staff')
 @ApiBearerAuth()
@@ -40,5 +41,12 @@ export class UsersController {
   async createSuperAdmin(@Body() body: CreateSuperAdminDto) {
     await this.usersService.createSuperAdmin(body.name, body.email, body.password);
     // no return — response will be { status: true, message: "..." } with no data field
+  }
+
+  @Patch('me/password')
+  @ResponseMessage('Password updated successfully')
+  @ApiOperation({ summary: 'Change your own password' })
+  async changeMyPassword(@Body() body: ChangePasswordDto, @CurrentUser() user: any) {
+    await this.usersService.changePassword(user.id_user, body.current_password, body.new_password);
   }
 }
