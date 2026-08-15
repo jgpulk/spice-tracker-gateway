@@ -45,7 +45,7 @@ export class UsersController {
 
   @Patch('me/password')
   @ResponseMessage('Password updated successfully')
-  @ApiOperation({ summary: 'Change your own password' })
+  @ApiOperation({ summary: '✅ Verified — Change your own password' })
   async changeMyPassword(@Body() body: ChangePasswordDto, @CurrentUser() user: any) {
     await this.usersService.changePassword(user.id_user, body.current_password, body.new_password);
   }
