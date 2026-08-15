@@ -134,7 +134,7 @@ describe('Auth — /api/v1/auth/login (e2e)', () => {
       expect(user.vendor_id).toBe(vendor.public_id); // exposed as public_id, not the raw PK
 
       const staff = await request(app.getHttpServer())
-        .get('/api/v1/users')
+        .get('/api/v1/staff')
         .set('Authorization', `Bearer ${access_token}`)
         .expect(200);
       expect(staff.body.data.some((u: any) => u.email === OWNER_EMAIL)).toBe(true);
@@ -160,7 +160,7 @@ describe('Auth — /api/v1/auth/login (e2e)', () => {
         .set('Authorization', `Bearer ${access_token}`)
         .expect(403);
       await request(app.getHttpServer())
-        .get('/api/v1/users')
+        .get('/api/v1/staff')
         .set('Authorization', `Bearer ${access_token}`)
         .expect(403);
     });

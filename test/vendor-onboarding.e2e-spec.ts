@@ -304,7 +304,7 @@ describe('Vendors — /api/v1/vendors (e2e)', () => {
 
       // The owner login must be scoped to this vendor, not some other one.
       const staff = await request(app.getHttpServer())
-        .get('/api/v1/users')
+        .get('/api/v1/staff')
         .set('Authorization', `Bearer ${login.body.data.access_token}`)
         .expect(200);
       expect(staff.body.data.some((u: any) => u.email === payload.owner_email)).toBe(true);
