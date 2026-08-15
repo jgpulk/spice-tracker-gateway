@@ -176,9 +176,29 @@ describe('Super admin creation — POST /api/v1/users/super-admin (e2e)', () => 
       expect(res.body.fields.email).toBeDefined();
     });
 
-    it('rejects a password shorter than 8 characters', async () => {
-      const res = await createSuperAdminAs(superAdminToken, validPayload({ password: 'short1' })).expect(400);
+    it('rejects a password shorter than 6 characters', async () => {
+      const res = await createSuperAdminAs(superAdminToken, validPayload({ password: 'Sh1!' })).expect(400);
       expect(res.body.fields.password).toBeDefined();
+    });
+
+    it('rejects a password missing a letter, a number, or a special character', async () => {
+      const noNumber = await createSuperAdminAs(
+        superAdminToken,
+        validPayload({ password: 'NoDigitsHere!' }),
+      ).expect(400);
+      expect(noNumber.body.fields.password).toBeDefined();
+
+      const noSpecialChar = await createSuperAdminAs(
+        superAdminToken,
+        validPayload({ password: 'NoSpecialChar123' }),
+      ).expect(400);
+      expect(noSpecialChar.body.fields.password).toBeDefined();
+
+      const noLetter = await createSuperAdminAs(
+        superAdminToken,
+        validPayload({ password: '12345!123456' }),
+      ).expect(400);
+      expect(noLetter.body.fields.password).toBeDefined();
     });
 
     it('rejects a non-string name with 400, not a 500 crash (transform runs before @IsString)', async () => {

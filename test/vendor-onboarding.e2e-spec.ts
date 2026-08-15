@@ -413,9 +413,20 @@ describe('Vendors — /api/v1/vendors (e2e)', () => {
       expect(res.body.fields.owner_email).toBeDefined();
     });
 
-    it('rejects an owner_password shorter than 8 characters', async () => {
-      const res = await createVendor({ owner_password: 'short1' }).expect(400);
+    it('rejects an owner_password shorter than 6 characters', async () => {
+      const res = await createVendor({ owner_password: 'Sh1!' }).expect(400);
       expect(res.body.fields.owner_password).toBeDefined();
+    });
+
+    it('rejects an owner_password missing a letter, a number, or a special character', async () => {
+      const noNumber = await createVendor({ owner_password: 'NoDigitsHere!' }).expect(400);
+      expect(noNumber.body.fields.owner_password).toBeDefined();
+
+      const noSpecialChar = await createVendor({ owner_password: 'NoSpecialChar123' }).expect(400);
+      expect(noSpecialChar.body.fields.owner_password).toBeDefined();
+
+      const noLetter = await createVendor({ owner_password: '12345!123456' }).expect(400);
+      expect(noLetter.body.fields.owner_password).toBeDefined();
     });
 
     it('rejects an invalid onboarding_source enum value', async () => {
@@ -540,11 +551,15 @@ describe('Vendors — /api/v1/vendors (e2e)', () => {
       await request(app.getHttpServer()).get(`/api/v1/vendors/${vendor.body.data.public_id}`).expect(401);
     });
 
-    it('rejects a non-SUPER_ADMIN caller', async () => {
+    // This route is also reachable by VENDOR_OWNER (see vendors-profile.e2e-spec.ts
+    // for the full shared-route matrix, including WAREHOUSE_STAFF rejection and a
+    // VENDOR_OWNER viewing their own vendor) — a VENDOR_OWNER requesting a
+    // *different* vendor's id gets 404, not 403, so as not to confirm it exists.
+    it("404s a VENDOR_OWNER requesting a different vendor's id", async () => {
       const vendor = await onboardVendor();
       await asOwner(
         request(app.getHttpServer()).get(`/api/v1/vendors/${vendor.body.data.public_id}`),
-      ).expect(403);
+      ).expect(404);
     });
 
     it('404s on an unknown (but well-formed) vendor id', () => {
@@ -636,14 +651,15 @@ describe('Vendors — /api/v1/vendors (e2e)', () => {
         .expect(404);
     });
 
-    it('updates a vendor and persists the change', async () => {
+    it('updates a vendor and persists the change, returning no data on the write itself', async () => {
       const vendor = await onboardVendor();
 
       const res = await asAdmin(request(app.getHttpServer()).patch(`/api/v1/vendors/${vendor.body.data.public_id}`))
         .send(toUpdatePayload(vendor.body.data, { city: 'Changed City' }))
         .expect(200);
 
-      expect(res.body.data.city).toBe('Changed City');
+      expect(res.body).toEqual({ status: true, message: 'Vendor updated successfully' });
+      expect(res.body.data).toBeUndefined();
 
       const single = await asAdmin(
         request(app.getHttpServer()).get(`/api/v1/vendors/${vendor.body.data.public_id}`),

@@ -12,6 +12,7 @@ import {
 } from 'class-validator';
 import { Transform } from 'class-transformer';
 import { trim, trimLower, trimUpper } from '../../../common/transforms/string.transform';
+import { IsStrongPassword, PASSWORD_MIN_LENGTH, PASSWORD_RULE_DESCRIPTION } from '../../../common/validators/password.validator';
 import { OnboardingSource } from '../entities/vendor.entity';
 
 export class CreateVendorDto {
@@ -115,10 +116,12 @@ export class CreateVendorDto {
   @Transform(trimLower)
   owner_email: string;
 
-  @ApiProperty({ example: 'Secret@123', minLength: 8, description: 'Password for the vendor owner login' })
-  @IsString()
-  @MinLength(8)
-  @IsNotEmpty()
+  @ApiProperty({
+    example: 'Secret@123',
+    minLength: PASSWORD_MIN_LENGTH,
+    description: `Password for the vendor owner login. ${PASSWORD_RULE_DESCRIPTION}`,
+  })
+  @IsStrongPassword()
   owner_password: string;
 
   // --- Onboarding tracking ---

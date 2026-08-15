@@ -9,6 +9,7 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { ResponseMessage } from '../../common/decorators/response-message.decorator';
 import { CreateVendorDto } from './dto/create-vendor.dto';
 import { UpdateVendorDto } from './dto/update-vendor.dto';
+import { UpdateVendorProfileDto } from './dto/update-vendor-profile.dto';
 import { ActivateVendorDto } from './dto/activate-vendor.dto';
 
 @ApiTags('Vendors')
@@ -39,20 +40,31 @@ export class VendorsController {
     await this.vendorsService.create(body, user.id_user);
   }
 
-  @Roles(Role.SUPER_ADMIN)
+  @Roles(Role.VENDOR_OWNER)
+  @Patch('me')
+  @ResponseMessage('Vendor profile updated successfully')
+  @ApiOperation({ summary: '✅ Verified — Update own vendor profile (Vendor Owner only)' })
+  async updateMyProfile(@Body() body: UpdateVendorProfileDto, @CurrentUser() user: any) {
+    await this.vendorsService.updateProfile(user.vendor_id, body);
+  }
+
+  @Roles(Role.SUPER_ADMIN, Role.VENDOR_OWNER)
   @Get(':id')
   @ResponseMessage('Vendor fetched successfully')
-  @ApiOperation({ summary: '✅ Verified — Get a vendor with full subscription history (Super Admin only)' })
-  findOne(@Param('id') id: string) {
-    return this.vendorsService.findOne(id);
+  @ApiOperation({
+    summary:
+      "✅ Verified — Get a vendor with full subscription history (Super Admin can view any vendor by id; Vendor Owner can view only their own — pass 'me' instead of an id)",
+  })
+  findOne(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.vendorsService.findOne(id, { role: user.role, vendor_id: user.vendor_id });
   }
 
   @Roles(Role.SUPER_ADMIN)
   @Patch(':id')
   @ResponseMessage('Vendor updated successfully')
   @ApiOperation({ summary: '✅ Verified — Update vendor details (Super Admin only)' })
-  update(@Param('id') id: string, @Body() body: UpdateVendorDto) {
-    return this.vendorsService.update(id, body);
+  async update(@Param('id') id: string, @Body() body: UpdateVendorDto) {
+    await this.vendorsService.update(id, body);
   }
 
   @Roles(Role.SUPER_ADMIN)

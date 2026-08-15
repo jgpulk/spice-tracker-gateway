@@ -10,6 +10,7 @@ import { BillingCycle } from '../subscription-plans/entities/subscription-plan.e
 import { SubscriptionPlansService } from '../subscription-plans/subscription-plans.service';
 import { CreateVendorDto } from './dto/create-vendor.dto';
 import { UpdateVendorDto } from './dto/update-vendor.dto';
+import { UpdateVendorProfileDto } from './dto/update-vendor-profile.dto';
 
 @Injectable()
 export class VendorsService {
@@ -54,18 +55,14 @@ export class VendorsService {
     });
   }
 
-  async findOne(publicId: string) {
-    const vendor = await this.vendorRepo.findOne({
-      where: { public_id: publicId },
-      relations: ['subscriptions', 'subscriptions.plan', 'onboarded_by', 'referred_by'],
-      // start_date is DATE-precision, so a same-day activation (the common
-      // case — trial + immediate upgrade) ties with the trial's start_date.
-      // created_at (full timestamp) breaks the tie so the current/active
-      // subscription — always the most recently created on a tie — wins.
-      order: { subscriptions: { start_date: 'DESC', created_at: 'DESC' } },
-    });
-    if (!vendor) throw new NotFoundException('Vendor not found');
+  private readonly vendorDetailRelations = ['subscriptions', 'subscriptions.plan', 'onboarded_by', 'referred_by'];
+  // start_date is DATE-precision, so a same-day activation (the common case —
+  // trial + immediate upgrade) ties with the trial's start_date. created_at
+  // (full timestamp) breaks the tie so the current/active subscription —
+  // always the most recently created on a tie — wins.
+  private readonly vendorDetailOrder = { subscriptions: { start_date: 'DESC' as const, created_at: 'DESC' as const } };
 
+  private mapVendorDetail(vendor: Vendor) {
     return {
       public_id: vendor.public_id,
       name: vendor.name,
@@ -104,6 +101,40 @@ export class VendorsService {
           : null,
       })),
     };
+  }
+
+  // `caller` is only passed when the route is reachable by a VENDOR_OWNER
+  // (see VendorsController#findOne) — SUPER_ADMIN calls omit it and can look
+  // up any vendor by public_id. A 404 (not 403) on a cross-tenant lookup
+  // avoids confirming to a vendor owner that some other vendor's id even
+  // exists. `publicId === 'me'` is a convenience alias — the caller's own
+  // vendor_id is already in their JWT, so a VENDOR_OWNER never needs to know
+  // their own public_id just to look themselves up; `-1` never matches a
+  // real id_vendor, so 'me' 404s cleanly for a caller with no vendor (e.g. a
+  // SUPER_ADMIN, whose vendor_id is always null).
+  async findOne(publicId: string, caller?: { role: Role; vendor_id: number | null }) {
+    const where = publicId === 'me' ? { id_vendor: caller?.vendor_id ?? -1 } : { public_id: publicId };
+
+    const vendor = await this.vendorRepo.findOne({
+      where,
+      relations: this.vendorDetailRelations,
+      order: this.vendorDetailOrder,
+    });
+    if (!vendor) throw new NotFoundException('Vendor not found');
+    if (caller?.role === Role.VENDOR_OWNER && vendor.id_vendor !== caller.vendor_id) {
+      throw new NotFoundException('Vendor not found');
+    }
+    return this.mapVendorDetail(vendor);
+  }
+
+  async findOneByVendorId(vendorId: number) {
+    const vendor = await this.vendorRepo.findOne({
+      where: { id_vendor: vendorId },
+      relations: this.vendorDetailRelations,
+      order: this.vendorDetailOrder,
+    });
+    if (!vendor) throw new NotFoundException('Vendor not found');
+    return this.mapVendorDetail(vendor);
   }
 
   private async getVendorOrFail(publicId: string): Promise<Vendor> {
@@ -240,6 +271,29 @@ export class VendorsService {
     });
 
     return this.findOne(publicId);
+  }
+
+  async updateProfile(vendorId: number, dto: UpdateVendorProfileDto) {
+    const vendor = await this.vendorRepo.findOneBy({ id_vendor: vendorId });
+    if (!vendor) throw new NotFoundException('Vendor not found');
+
+    const existingReg = await this.vendorRepo.findOneBy({ business_reg_no: dto.business_reg_no });
+    if (existingReg && existingReg.id_vendor !== vendorId) {
+      throw new ConflictException('A vendor with this business_reg_no already exists');
+    }
+
+    await this.vendorRepo.update(vendorId, {
+      name: dto.name,
+      address: dto.address,
+      city: dto.city,
+      state: dto.state,
+      country: dto.country,
+      pincode: dto.pincode,
+      business_reg_no: dto.business_reg_no,
+      business_type: dto.business_type,
+    });
+
+    return this.findOneByVendorId(vendorId);
   }
 
   async activateVendor(publicId: string, planPublicId: string) {

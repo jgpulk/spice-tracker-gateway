@@ -2,6 +2,7 @@ import { ApiProperty } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import { IsEmail, IsNotEmpty, IsString, MaxLength, MinLength } from 'class-validator';
 import { trim, trimLower } from '../../../common/transforms/string.transform';
+import { IsStrongPassword, PASSWORD_MIN_LENGTH, PASSWORD_RULE_DESCRIPTION } from '../../../common/validators/password.validator';
 
 export class CreateSuperAdminDto {
   @ApiProperty({ example: 'Jane Doe' })
@@ -19,9 +20,11 @@ export class CreateSuperAdminDto {
   @Transform(trimLower)
   email: string;
 
-  @ApiProperty({ example: 'StrongPassword!1', minLength: 8 })
-  @IsString()
-  @MinLength(8)
-  @IsNotEmpty()
+  @ApiProperty({
+    example: 'StrongPassword!1',
+    minLength: PASSWORD_MIN_LENGTH,
+    description: PASSWORD_RULE_DESCRIPTION,
+  })
+  @IsStrongPassword()
   password: string;
 }
