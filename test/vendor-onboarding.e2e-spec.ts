@@ -413,9 +413,20 @@ describe('Vendors — /api/v1/vendors (e2e)', () => {
       expect(res.body.fields.owner_email).toBeDefined();
     });
 
-    it('rejects an owner_password shorter than 8 characters', async () => {
-      const res = await createVendor({ owner_password: 'short1' }).expect(400);
+    it('rejects an owner_password shorter than 6 characters', async () => {
+      const res = await createVendor({ owner_password: 'Sh1!' }).expect(400);
       expect(res.body.fields.owner_password).toBeDefined();
+    });
+
+    it('rejects an owner_password missing a letter, a number, or a special character', async () => {
+      const noNumber = await createVendor({ owner_password: 'NoDigitsHere!' }).expect(400);
+      expect(noNumber.body.fields.owner_password).toBeDefined();
+
+      const noSpecialChar = await createVendor({ owner_password: 'NoSpecialChar123' }).expect(400);
+      expect(noSpecialChar.body.fields.owner_password).toBeDefined();
+
+      const noLetter = await createVendor({ owner_password: '12345!123456' }).expect(400);
+      expect(noLetter.body.fields.owner_password).toBeDefined();
     });
 
     it('rejects an invalid onboarding_source enum value', async () => {

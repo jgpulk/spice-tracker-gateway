@@ -1,4 +1,10 @@
-import { ConflictException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
@@ -58,6 +64,9 @@ export class UsersService {
 
     const valid = await bcrypt.compare(currentPassword, user.password_hash);
     if (!valid) throw new UnauthorizedException('Current password is incorrect');
+
+    const unchanged = await bcrypt.compare(newPassword, user.password_hash);
+    if (unchanged) throw new BadRequestException('New password must be different from the current password');
 
     await this.userRepo.update(id, { password_hash: await bcrypt.hash(newPassword, 10) });
   }
