@@ -1,7 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsNotEmpty, IsString, Matches, MaxLength, MinLength } from 'class-validator';
 import { Transform } from 'class-transformer';
-import { trim } from '../../../common/transforms/string.transform';
+import { trim, trimUpper } from '../../../common/transforms/string.transform';
 
 export class UpdateVendorProfileDto {
   // --- Shop identity ---
@@ -54,6 +54,12 @@ export class UpdateVendorProfileDto {
   pincode: string;
 
   // --- Business details ---
+  @ApiProperty({ example: '29ABCDE1234F1Z5', description: 'GST or business registration number (alphanumeric, 3–50 chars)' })
+  @Matches(/^[A-Za-z0-9\-/]{3,50}$/, { message: 'business_reg_no must be alphanumeric (letters, digits, hyphens, slashes)' })
+  @IsNotEmpty()
+  @Transform(trimUpper)
+  business_reg_no: string;
+
   @ApiProperty({ example: 'Sole Proprietorship', description: 'e.g. Sole Proprietorship, Partnership, Private Limited' })
   @IsString()
   @MaxLength(255)

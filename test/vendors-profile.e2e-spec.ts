@@ -10,7 +10,7 @@ import { Role } from '../src/common/enums/role.enum';
 import { Vendor, VendorStatus } from '../src/modules/vendors/entities/vendor.entity';
 import { VendorSubscription } from '../src/modules/vendors/entities/vendor-subscription.entity';
 
-describe('Vendors — /api/v1/vendors/me (e2e)', () => {
+describe('Vendors — /api/v1/vendors/:id shared read + /api/v1/vendors/me profile (e2e)', () => {
   let app: INestApplication<App>;
   let userRepo: Repository<User>;
   let vendorRepo: Repository<Vendor>;
@@ -44,6 +44,7 @@ describe('Vendors — /api/v1/vendors/me (e2e)', () => {
     state: 'Kerala',
     country: 'India',
     pincode: '685602',
+    business_reg_no: '29ABCDEPROFA1Z5', // matches vendorA's own value — no conflict on self-update
     business_type: 'Sole Proprietorship',
     ...overrides,
   });
@@ -156,21 +157,26 @@ describe('Vendors — /api/v1/vendors/me (e2e)', () => {
     await app.close();
   });
 
-  describe('GET /vendors/me', () => {
+  describe('GET /vendors/:id — shared by Super Admin and Vendor Owner', () => {
     it('rejects an unauthenticated request', () => {
-      return request(app.getHttpServer()).get('/api/v1/vendors/me').expect(401);
-    });
-
-    it('rejects a SUPER_ADMIN caller — no vendor context', () => {
-      return asAdmin(request(app.getHttpServer()).get('/api/v1/vendors/me')).expect(403);
+      return request(app.getHttpServer()).get(`/api/v1/vendors/${vendorA.public_id}`).expect(401);
     });
 
     it('rejects a WAREHOUSE_STAFF caller — view-only staff has no vendor-management access', () => {
-      return asStaffA(request(app.getHttpServer()).get('/api/v1/vendors/me')).expect(403);
+      return asStaffA(request(app.getHttpServer()).get(`/api/v1/vendors/${vendorA.public_id}`)).expect(403);
     });
 
-    it("returns the caller's own vendor profile without leaking internal ids", async () => {
-      const res = await asOwnerA(request(app.getHttpServer()).get('/api/v1/vendors/me')).expect(200);
+    it('lets a SUPER_ADMIN fetch any vendor by id', async () => {
+      const res = await asAdmin(request(app.getHttpServer()).get(`/api/v1/vendors/${vendorA.public_id}`)).expect(
+        200,
+      );
+      expect(res.body.data.public_id).toBe(vendorA.public_id);
+    });
+
+    it("lets a VENDOR_OWNER fetch their own vendor by id without leaking internal ids", async () => {
+      const res = await asOwnerA(request(app.getHttpServer()).get(`/api/v1/vendors/${vendorA.public_id}`)).expect(
+        200,
+      );
 
       const vendor = res.body.data;
       expect(vendor.public_id).toBe(vendorA.public_id);
@@ -183,10 +189,31 @@ describe('Vendors — /api/v1/vendors/me (e2e)', () => {
       expect(vendor.referred_by_vendor_id).toBeUndefined();
     });
 
-    it("scopes to the caller's own vendor — owner B never sees vendor A's data", async () => {
-      const res = await asOwnerB(request(app.getHttpServer()).get('/api/v1/vendors/me')).expect(200);
-      expect(res.body.data.public_id).toBe(vendorB.public_id);
-      expect(res.body.data.public_id).not.toBe(vendorA.public_id);
+    it("404s a VENDOR_OWNER who requests another vendor's id — cross-tenant lookup is blocked", async () => {
+      await asOwnerA(request(app.getHttpServer()).get(`/api/v1/vendors/${vendorB.public_id}`)).expect(404);
+      await asOwnerB(request(app.getHttpServer()).get(`/api/v1/vendors/${vendorA.public_id}`)).expect(404);
+    });
+
+    it('404s on an unknown vendor id for either role', async () => {
+      const unknownId = '00000000-0000-0000-0000-000000000000';
+      await asAdmin(request(app.getHttpServer()).get(`/api/v1/vendors/${unknownId}`)).expect(404);
+      await asOwnerA(request(app.getHttpServer()).get(`/api/v1/vendors/${unknownId}`)).expect(404);
+    });
+
+    it("lets a VENDOR_OWNER pass 'me' instead of their own public_id", async () => {
+      const res = await asOwnerA(request(app.getHttpServer()).get('/api/v1/vendors/me')).expect(200);
+      expect(res.body.data.public_id).toBe(vendorA.public_id);
+
+      const ownerBRes = await asOwnerB(request(app.getHttpServer()).get('/api/v1/vendors/me')).expect(200);
+      expect(ownerBRes.body.data.public_id).toBe(vendorB.public_id);
+    });
+
+    it("404s a SUPER_ADMIN who passes 'me' — they have no vendor of their own", () => {
+      return asAdmin(request(app.getHttpServer()).get('/api/v1/vendors/me')).expect(404);
+    });
+
+    it("404s a WAREHOUSE_STAFF who passes 'me' — same as any other id, blocked by role", () => {
+      return asStaffA(request(app.getHttpServer()).get('/api/v1/vendors/me')).expect(403);
     });
   });
 
@@ -210,14 +237,17 @@ describe('Vendors — /api/v1/vendors/me (e2e)', () => {
         .expect(403);
     });
 
-    it('updates the allowed business-detail fields', async () => {
+    it('updates the allowed business-detail fields, returning no data on the write itself', async () => {
       const res = await asOwnerA(request(app.getHttpServer()).patch('/api/v1/vendors/me'))
         .send(validProfilePayload({ city: 'Changed City' }))
         .expect(200);
 
-      expect(res.body.data.city).toBe('Changed City');
+      expect(res.body).toEqual({ status: true, message: 'Vendor profile updated successfully' });
+      expect(res.body.data).toBeUndefined();
 
-      const refetched = await asOwnerA(request(app.getHttpServer()).get('/api/v1/vendors/me')).expect(200);
+      const refetched = await asOwnerA(
+        request(app.getHttpServer()).get(`/api/v1/vendors/${vendorA.public_id}`),
+      ).expect(200);
       expect(refetched.body.data.city).toBe('Changed City');
     });
 
@@ -226,17 +256,15 @@ describe('Vendors — /api/v1/vendors/me (e2e)', () => {
         .send(validProfilePayload({ name: 'Owner A Renamed Shop' }))
         .expect(200);
 
-      const ownerBProfile = await asOwnerB(request(app.getHttpServer()).get('/api/v1/vendors/me')).expect(200);
+      const ownerBProfile = await asOwnerB(
+        request(app.getHttpServer()).get(`/api/v1/vendors/${vendorB.public_id}`),
+      ).expect(200);
       expect(ownerBProfile.body.data.name).toBe(vendorB.name);
     });
 
-    it('rejects admin/create-only fields (subdomain, business_reg_no, email, phone) as unknown', async () => {
+    it('rejects admin/create-only fields (subdomain, email, phone) as unknown', async () => {
       await asOwnerA(request(app.getHttpServer()).patch('/api/v1/vendors/me'))
         .send({ ...validProfilePayload(), subdomain: 'hijacked-subdomain' })
-        .expect(400);
-
-      await asOwnerA(request(app.getHttpServer()).patch('/api/v1/vendors/me'))
-        .send({ ...validProfilePayload(), business_reg_no: '29HIJACKED0001Z5' })
         .expect(400);
 
       await asOwnerA(request(app.getHttpServer()).patch('/api/v1/vendors/me'))
@@ -246,6 +274,41 @@ describe('Vendors — /api/v1/vendors/me (e2e)', () => {
       await asOwnerA(request(app.getHttpServer()).patch('/api/v1/vendors/me'))
         .send({ ...validProfilePayload(), phone: '+919999999999' })
         .expect(400);
+    });
+
+    it('updates business_reg_no', async () => {
+      await asOwnerA(request(app.getHttpServer()).patch('/api/v1/vendors/me'))
+        .send(validProfilePayload({ business_reg_no: '29OWNERUPDATED1Z5' }))
+        .expect(200);
+
+      const refetched = await asOwnerA(
+        request(app.getHttpServer()).get(`/api/v1/vendors/${vendorA.public_id}`),
+      ).expect(200);
+      expect(refetched.body.data.business_reg_no).toBe('29OWNERUPDATED1Z5');
+
+      // restore so later tests relying on the default payload's value keep working
+      await asOwnerA(request(app.getHttpServer()).patch('/api/v1/vendors/me'))
+        .send(validProfilePayload())
+        .expect(200);
+    });
+
+    it('rejects updating business_reg_no to one already used by another vendor', async () => {
+      const res = await asOwnerA(request(app.getHttpServer()).patch('/api/v1/vendors/me'))
+        .send(validProfilePayload({ business_reg_no: vendorB.business_reg_no }))
+        .expect(409);
+      expect(res.body.message).toMatch(/business_reg_no/i);
+
+      // vendor B's own record must be untouched by the rejected attempt
+      const ownerBProfile = await asOwnerB(
+        request(app.getHttpServer()).get(`/api/v1/vendors/${vendorB.public_id}`),
+      ).expect(200);
+      expect(ownerBProfile.body.data.business_reg_no).toBe(vendorB.business_reg_no);
+    });
+
+    it('allows re-saving a vendor with its own unchanged business_reg_no (not a false-positive duplicate)', async () => {
+      await asOwnerA(request(app.getHttpServer()).patch('/api/v1/vendors/me'))
+        .send(validProfilePayload())
+        .expect(200);
     });
 
     it('rejects missing required fields', async () => {
@@ -259,7 +322,17 @@ describe('Vendors — /api/v1/vendors/me (e2e)', () => {
       expect(res.body.fields.state).toBeDefined();
       expect(res.body.fields.country).toBeDefined();
       expect(res.body.fields.pincode).toBeDefined();
+      expect(res.body.fields.business_reg_no).toBeDefined();
       expect(res.body.fields.business_type).toBeDefined();
+    });
+
+    it('rejects a business_reg_no shorter than 3, longer than 50, or with invalid characters', async () => {
+      const patch = (overrides: Record<string, unknown>) =>
+        asOwnerA(request(app.getHttpServer()).patch('/api/v1/vendors/me')).send(validProfilePayload(overrides));
+
+      await patch({ business_reg_no: 'AB' }).expect(400);
+      await patch({ business_reg_no: 'A'.repeat(51) }).expect(400);
+      await patch({ business_reg_no: 'GST@123!' }).expect(400);
     });
 
     it('rejects malformed fields (pincode, city)', async () => {
