@@ -21,7 +21,7 @@ export class AuthService {
     return {
       access_token: token,
       user: {
-        id: user.public_id,
+        user_id: user.public_id,
         name: user.name,
         role: user.role,
         vendor_id: user.vendor?.public_id ?? null,

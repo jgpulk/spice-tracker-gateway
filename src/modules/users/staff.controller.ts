@@ -19,7 +19,7 @@ export class StaffController {
   @Roles(Role.VENDOR_OWNER)
   @Get()
   @ResponseMessage('Staff list fetched successfully')
-  @ApiOperation({ summary: 'List all staff for this vendor shop' })
+  @ApiOperation({ summary: '✅ Verified — List all staff for this vendor shop' })
   findAll(@CurrentUser() user: any) {
     return this.usersService.findAllByVendor(user.vendor_id);
   }
@@ -27,8 +27,8 @@ export class StaffController {
   @Roles(Role.VENDOR_OWNER)
   @Post()
   @ResponseMessage('Staff member created successfully')
-  @ApiOperation({ summary: 'Add a new staff member to this vendor shop' })
-  create(@Body() body: CreateUserDto, @CurrentUser() user: any) {
-    return this.usersService.create({ ...body, vendor_id: user.vendor_id });
+  @ApiOperation({ summary: '✅ Verified — Add a new staff member to this vendor shop' })
+  async create(@Body() body: CreateUserDto, @CurrentUser() user: any) {
+    await this.usersService.createStaff(body.name, body.email, body.password, user.vendor_id);
   }
 }

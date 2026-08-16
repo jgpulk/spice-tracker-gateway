@@ -19,7 +19,7 @@ export class SubscriptionPlansService {
     });
 
     return plans.map(({ public_id, name, plan_type, billing_cycle, monthly_fee, description, is_active, is_default_trial }) => ({
-      public_id,
+      plan_id: public_id,
       name,
       plan_type,
       billing_cycle,
@@ -34,7 +34,7 @@ export class SubscriptionPlansService {
     const plan = await this.planRepo.findOneBy({ public_id: publicId, is_deleted: false });
     if (!plan) throw new NotFoundException('Subscription plan not found');
     return {
-      public_id: plan.public_id,
+      plan_id: plan.public_id,
       name: plan.name,
       plan_type: plan.plan_type,
       billing_cycle: plan.billing_cycle,

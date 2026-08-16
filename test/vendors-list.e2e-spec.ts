@@ -74,12 +74,12 @@ describe('Vendors — GET /api/v1/vendors (list all, e2e)', () => {
 
   const activate = (publicId: string, planPublicId: string) =>
     asAdmin(request(app.getHttpServer()).patch(`/api/v1/vendors/${publicId}/activate`)).send({
-      plan_public_id: planPublicId,
+      plan_id: planPublicId,
     });
 
   const getList = () => asAdmin(request(app.getHttpServer()).get('/api/v1/vendors'));
 
-  const findInList = (list: any[], publicId: string) => list.find((v: any) => v.public_id === publicId);
+  const findInList = (list: any[], publicId: string) => list.find((v: any) => v.vendor_id === publicId);
 
   beforeAll(async () => {
     const { app: testApp, moduleFixture } = await createTestApp();
@@ -209,8 +209,8 @@ describe('Vendors — GET /api/v1/vendors (list all, e2e)', () => {
           'onboarded_by',
           'onboarding_source',
           'phone',
-          'public_id',
           'referred_by',
+          'vendor_id',
           'status',
           'subdomain',
           'subscription',
@@ -229,12 +229,13 @@ describe('Vendors — GET /api/v1/vendors (list all, e2e)', () => {
   });
 
   describe('onboarded_by / referred_by', () => {
-    it('shows onboarded_by as {name} for a directly SUPER_ADMIN-onboarded vendor, referred_by null', async () => {
+    it('shows onboarded_by as {user_id, name} for a directly SUPER_ADMIN-onboarded vendor, referred_by null', async () => {
       const vendor = await onboardVendor();
       const list = await getList().expect(200);
+      const admin = await userRepo.findOneBy({ email: ADMIN_EMAIL });
 
-      const item = findInList(list.body.data, vendor.body.data.public_id);
-      expect(item.onboarded_by).toEqual({ name: ADMIN_NAME });
+      const item = findInList(list.body.data, vendor.body.data.vendor_id);
+      expect(item.onboarded_by).toEqual({ user_id: admin!.public_id, name: ADMIN_NAME });
       expect(item.referred_by).toBeNull();
     });
 
@@ -242,15 +243,15 @@ describe('Vendors — GET /api/v1/vendors (list all, e2e)', () => {
       const referrer = await onboardVendor();
       const referred = await onboardVendor({
         onboarding_source: OnboardingSource.REFERRAL,
-        referred_by_vendor_public_id: referrer.body.data.public_id,
+        referred_by_vendor_id: referrer.body.data.vendor_id,
       });
 
       const list = await getList().expect(200);
-      const item = findInList(list.body.data, referred.body.data.public_id);
+      const item = findInList(list.body.data, referred.body.data.vendor_id);
 
       expect(item.onboarded_by).toBeNull();
       expect(item.referred_by).toEqual({ name: referrer.body.data.name });
-      // Only the name should be exposed — no public_id/email/other fields of the referrer.
+      // Only the name should be exposed — no vendor_id/email/other fields of the referrer.
       expect(Object.keys(item.referred_by)).toEqual(['name']);
     });
   });
@@ -259,7 +260,7 @@ describe('Vendors — GET /api/v1/vendors (list all, e2e)', () => {
     it('shows a fresh TRIAL vendor with is_trial true and the baseline default trial plan', async () => {
       const vendor = await onboardVendor();
       const list = await getList().expect(200);
-      const item = findInList(list.body.data, vendor.body.data.public_id);
+      const item = findInList(list.body.data, vendor.body.data.vendor_id);
 
       expect(item.subscription).not.toBeNull();
       expect(Object.keys(item.subscription).sort()).toEqual(['expires_at', 'is_trial', 'plan', 'status'].sort());
@@ -274,10 +275,10 @@ describe('Vendors — GET /api/v1/vendors (list all, e2e)', () => {
 
     it('shows an activated vendor with is_trial false and the paid plan', async () => {
       const vendor = await onboardVendor();
-      await activate(vendor.body.data.public_id, starterPlanPublicId).expect(200);
+      await activate(vendor.body.data.vendor_id, starterPlanPublicId).expect(200);
 
       const list = await getList().expect(200);
-      const item = findInList(list.body.data, vendor.body.data.public_id);
+      const item = findInList(list.body.data, vendor.body.data.vendor_id);
 
       expect(item.subscription.status).toBe(SubscriptionStatus.ACTIVE);
       expect(item.subscription.is_trial).toBe(false);
@@ -290,11 +291,11 @@ describe('Vendors — GET /api/v1/vendors (list all, e2e)', () => {
 
     it('shows only the current plan after re-activating onto a different one', async () => {
       const vendor = await onboardVendor();
-      await activate(vendor.body.data.public_id, starterPlanPublicId).expect(200);
-      await activate(vendor.body.data.public_id, proPlanPublicId).expect(200);
+      await activate(vendor.body.data.vendor_id, starterPlanPublicId).expect(200);
+      await activate(vendor.body.data.vendor_id, proPlanPublicId).expect(200);
 
       const list = await getList().expect(200);
-      const item = findInList(list.body.data, vendor.body.data.public_id);
+      const item = findInList(list.body.data, vendor.body.data.vendor_id);
 
       expect(item.subscription.plan).toEqual({ name: 'Pro Monthly', plan_type: PlanType.PRO });
     });
@@ -329,7 +330,7 @@ describe('Vendors — GET /api/v1/vendors (list all, e2e)', () => {
 
         const vendor = await onboardVendor();
         const list = await getList().expect(200);
-        const item = findInList(list.body.data, vendor.body.data.public_id);
+        const item = findInList(list.body.data, vendor.body.data.vendor_id);
 
         expect(item.subscription.is_trial).toBe(true);
         expect(item.subscription.plan).toEqual({
@@ -349,16 +350,16 @@ describe('Vendors — GET /api/v1/vendors (list all, e2e)', () => {
     it('includes vendors of every status (TRIAL, ACTIVE, SUSPENDED) without hiding any', async () => {
       const trialVendor = await onboardVendor();
       const activeVendor = await onboardVendor();
-      await activate(activeVendor.body.data.public_id, starterPlanPublicId).expect(200);
+      await activate(activeVendor.body.data.vendor_id, starterPlanPublicId).expect(200);
       const suspendedVendor = await vendorRepo.save(
         vendorRepo.create({ ...validVendorPayload(), status: VendorStatus.SUSPENDED }),
       );
 
       const list = await getList().expect(200);
-      const ids = list.body.data.map((v: any) => v.public_id);
+      const ids = list.body.data.map((v: any) => v.vendor_id);
 
-      expect(ids).toContain(trialVendor.body.data.public_id);
-      expect(ids).toContain(activeVendor.body.data.public_id);
+      expect(ids).toContain(trialVendor.body.data.vendor_id);
+      expect(ids).toContain(activeVendor.body.data.vendor_id);
       expect(ids).toContain(suspendedVendor.public_id);
     });
 
@@ -376,8 +377,8 @@ describe('Vendors — GET /api/v1/vendors (list all, e2e)', () => {
       await vendorRepo.update(newer.id_vendor, { created_at: new Date('2020-01-02T00:00:00Z') });
 
       const list = await getList().expect(200);
-      const idxOlder = list.body.data.findIndex((v: any) => v.public_id === older.public_id);
-      const idxNewer = list.body.data.findIndex((v: any) => v.public_id === newer.public_id);
+      const idxOlder = list.body.data.findIndex((v: any) => v.vendor_id === older.public_id);
+      const idxNewer = list.body.data.findIndex((v: any) => v.vendor_id === newer.public_id);
 
       expect(idxOlder).toBeGreaterThanOrEqual(0);
       expect(idxNewer).toBeGreaterThanOrEqual(0);

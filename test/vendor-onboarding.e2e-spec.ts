@@ -109,7 +109,7 @@ describe('Vendors — /api/v1/vendors (e2e)', () => {
   // fetch, and hand back the fetch's Response so `.body.data` still works.
   const activateVendor = async (publicId: string, planPublicId: string) => {
     await asAdmin(request(app.getHttpServer()).patch(`/api/v1/vendors/${publicId}/activate`))
-      .send({ plan_public_id: planPublicId })
+      .send({ plan_id: planPublicId })
       .expect(200);
     return asAdmin(request(app.getHttpServer()).get(`/api/v1/vendors/${publicId}`)).expect(200);
   };
@@ -241,7 +241,7 @@ describe('Vendors — /api/v1/vendors (e2e)', () => {
 
       const vendor = fetched.body.data;
       expect(vendor.id_vendor).toBeUndefined(); // internal numeric id must never leak
-      expect(vendor.public_id).toBeDefined();
+      expect(vendor.vendor_id).toBeDefined();
       expect(vendor.status).toBe(VendorStatus.TRIAL);
       expect(vendor.onboarding_source).toBe(OnboardingSource.SUPER_ADMIN);
       expect(vendor.country).toBe('India');
@@ -253,23 +253,23 @@ describe('Vendors — /api/v1/vendors (e2e)', () => {
       // Onboarding now requires an active default trial plan to exist at
       // all (see the "trial plan allocation" describe block below), so a
       // fresh trial is always assigned to whatever that plan currently is.
-      expect(trialSub.plan.public_id).toBe(baselineDefaultTrialPlan.public_id);
+      expect(trialSub.plan.plan_id).toBe(baselineDefaultTrialPlan.public_id);
 
       const days =
         (new Date(trialSub.end_date).getTime() - new Date(trialSub.start_date).getTime()) / 86_400_000;
       expect(Math.round(days)).toBe(30);
 
-      createdVendorPublicId = vendor.public_id;
+      createdVendorPublicId = vendor.vendor_id;
     });
 
     it('shows up in the vendor list and single-vendor lookup', async () => {
       const list = await asAdmin(request(app.getHttpServer()).get('/api/v1/vendors')).expect(200);
-      expect(list.body.data.some((v: any) => v.public_id === createdVendorPublicId)).toBe(true);
+      expect(list.body.data.some((v: any) => v.vendor_id === createdVendorPublicId)).toBe(true);
 
       const single = await asAdmin(
         request(app.getHttpServer()).get(`/api/v1/vendors/${createdVendorPublicId}`),
       ).expect(200);
-      expect(single.body.data.public_id).toBe(createdVendorPublicId);
+      expect(single.body.data.vendor_id).toBe(createdVendorPublicId);
     });
 
     it('trims/normalizes free-text fields and uppercases business_reg_no', async () => {
@@ -345,6 +345,28 @@ describe('Vendors — /api/v1/vendors (e2e)', () => {
         'owner_password',
       ]) {
         expect(res.body.fields[field]).toBeDefined();
+      }
+    });
+
+    it('reports "should not be empty" (not a type/format message) as the first error for every missing required field — main.ts uses stopAtFirstError, so @IsNotEmpty must be declared before type/format decorators', async () => {
+      const res = await asAdmin(request(app.getHttpServer()).post('/api/v1/vendors')).send({}).expect(400);
+
+      for (const field of [
+        'name',
+        'subdomain',
+        'email',
+        'phone',
+        'address',
+        'city',
+        'state',
+        'country',
+        'pincode',
+        'business_reg_no',
+        'business_type',
+        'owner_name',
+        'owner_email',
+      ]) {
+        expect(res.body.fields[field][0]).toBe(`${field} should not be empty`);
       }
     });
 
@@ -433,12 +455,12 @@ describe('Vendors — /api/v1/vendors (e2e)', () => {
       await createVendor({ onboarding_source: 'NOT_A_SOURCE' }).expect(400);
     });
 
-    it('rejects a malformed (non-UUID) referred_by_vendor_public_id, even with REFERRAL source', async () => {
+    it('rejects a malformed (non-UUID) referred_by_vendor_id, even with REFERRAL source', async () => {
       const res = await createVendor({
         onboarding_source: OnboardingSource.REFERRAL,
-        referred_by_vendor_public_id: 'not-a-uuid',
+        referred_by_vendor_id: 'not-a-uuid',
       }).expect(400);
-      expect(res.body.fields.referred_by_vendor_public_id).toBeDefined();
+      expect(res.body.fields.referred_by_vendor_id).toBeDefined();
     });
 
     it('accepts values at the exact boundary lengths (name/subdomain/business_reg_no)', async () => {
@@ -446,12 +468,12 @@ describe('Vendors — /api/v1/vendors (e2e)', () => {
       await onboardVendor({ name: 'C'.repeat(255), business_reg_no: 'D'.repeat(50) });
     });
 
-    it('rejects REFERRAL source missing referred_by_vendor_public_id', () => {
+    it('rejects REFERRAL source missing referred_by_vendor_id', () => {
       return createVendor({ onboarding_source: OnboardingSource.REFERRAL }).expect(400);
     });
 
-    it('rejects referred_by_vendor_public_id set without REFERRAL source', () => {
-      return createVendor({ referred_by_vendor_public_id: '00000000-0000-0000-0000-000000000000' }).expect(
+    it('rejects referred_by_vendor_id set without REFERRAL source', () => {
+      return createVendor({ referred_by_vendor_id: '00000000-0000-0000-0000-000000000000' }).expect(
         400,
       );
     });
@@ -461,7 +483,7 @@ describe('Vendors — /api/v1/vendors (e2e)', () => {
 
       const fetched = await onboardVendor({
         onboarding_source: OnboardingSource.REFERRAL,
-        referred_by_vendor_public_id: referrer.body.data.public_id,
+        referred_by_vendor_id: referrer.body.data.vendor_id,
       });
 
       expect(fetched.body.data.onboarding_source).toBe(OnboardingSource.REFERRAL);
@@ -470,20 +492,20 @@ describe('Vendors — /api/v1/vendors (e2e)', () => {
       expect(fetched.body.data.onboarded_by_user_id).toBeUndefined();
       expect(fetched.body.data.referred_by_vendor_id).toBeUndefined();
 
-      const saved = await vendorRepo.findOneBy({ public_id: fetched.body.data.public_id });
-      const referrerRow = await vendorRepo.findOneBy({ public_id: referrer.body.data.public_id });
+      const saved = await vendorRepo.findOneBy({ public_id: fetched.body.data.vendor_id });
+      const referrerRow = await vendorRepo.findOneBy({ public_id: referrer.body.data.vendor_id });
       // onboarded_by_user_id only gets set for direct SUPER_ADMIN onboarding.
       expect(saved!.onboarded_by_user_id).toBeNull();
       expect(saved!.referred_by_vendor_id).toBe(referrerRow!.id_vendor);
     });
 
-    it('falls back to a normal signup when referred_by_vendor_public_id does not resolve to any vendor', async () => {
+    it('falls back to a normal signup when referred_by_vendor_id does not resolve to any vendor', async () => {
       const fetched = await onboardVendor({
         onboarding_source: OnboardingSource.REFERRAL,
-        referred_by_vendor_public_id: '00000000-0000-0000-0000-000000000000',
+        referred_by_vendor_id: '00000000-0000-0000-0000-000000000000',
       });
 
-      const saved = await vendorRepo.findOneBy({ public_id: fetched.body.data.public_id });
+      const saved = await vendorRepo.findOneBy({ public_id: fetched.body.data.vendor_id });
       expect(saved!.referred_by_vendor_id).toBeNull();
     });
 
@@ -495,10 +517,10 @@ describe('Vendors — /api/v1/vendors (e2e)', () => {
       expect(fetched.body.data.referred_by).toBeNull();
     });
 
-    it('rejects referred_by_vendor_public_id set alongside onboarding_source: SELF', () => {
+    it('rejects referred_by_vendor_id set alongside onboarding_source: SELF', () => {
       return createVendor({
         onboarding_source: OnboardingSource.SELF,
-        referred_by_vendor_public_id: '00000000-0000-0000-0000-000000000000',
+        referred_by_vendor_id: '00000000-0000-0000-0000-000000000000',
       }).expect(400);
     });
 
@@ -548,7 +570,7 @@ describe('Vendors — /api/v1/vendors (e2e)', () => {
   describe('GET /vendors/:id', () => {
     it('rejects an unauthenticated request', async () => {
       const vendor = await onboardVendor();
-      await request(app.getHttpServer()).get(`/api/v1/vendors/${vendor.body.data.public_id}`).expect(401);
+      await request(app.getHttpServer()).get(`/api/v1/vendors/${vendor.body.data.vendor_id}`).expect(401);
     });
 
     // This route is also reachable by VENDOR_OWNER (see vendors-profile.e2e-spec.ts
@@ -558,7 +580,7 @@ describe('Vendors — /api/v1/vendors (e2e)', () => {
     it("404s a VENDOR_OWNER requesting a different vendor's id", async () => {
       const vendor = await onboardVendor();
       await asOwner(
-        request(app.getHttpServer()).get(`/api/v1/vendors/${vendor.body.data.public_id}`),
+        request(app.getHttpServer()).get(`/api/v1/vendors/${vendor.body.data.vendor_id}`),
       ).expect(404);
     });
 
@@ -568,9 +590,10 @@ describe('Vendors — /api/v1/vendors (e2e)', () => {
       ).expect(404);
     });
 
-    it('includes onboarded_by as {name} for a directly onboarded vendor, referred_by null', async () => {
+    it('includes onboarded_by as {user_id, name} for a directly onboarded vendor, referred_by null', async () => {
       const vendor = await onboardVendor();
-      expect(vendor.body.data.onboarded_by).toEqual({ name: 'E2E Super Admin' });
+      const admin = await userRepo.findOneBy({ email: ADMIN_EMAIL });
+      expect(vendor.body.data.onboarded_by).toEqual({ user_id: admin!.public_id, name: 'E2E Super Admin' });
       expect(vendor.body.data.referred_by).toBeNull();
     });
 
@@ -578,18 +601,18 @@ describe('Vendors — /api/v1/vendors (e2e)', () => {
       const referrer = await onboardVendor();
       const referred = await onboardVendor({
         onboarding_source: OnboardingSource.REFERRAL,
-        referred_by_vendor_public_id: referrer.body.data.public_id,
+        referred_by_vendor_id: referrer.body.data.vendor_id,
       });
 
       expect(referred.body.data.onboarded_by).toBeNull();
       expect(referred.body.data.referred_by).toEqual({ name: referrer.body.data.name });
-      // Only the name should be exposed — no public_id/email/other referrer fields.
+      // Only the name should be exposed — no vendor_id/email/other referrer fields.
       expect(Object.keys(referred.body.data.referred_by)).toEqual(['name']);
     });
 
     it('sorts subscriptions by activation date (start_date) descending — newest first', async () => {
       const vendor = await onboardVendor();
-      const row = await vendorRepo.findOneBy({ public_id: vendor.body.data.public_id });
+      const row = await vendorRepo.findOneBy({ public_id: vendor.body.data.vendor_id });
 
       // start_date is DATE-precision, so subscriptions created moments apart
       // within this test would otherwise tie — use explicit, unambiguous dates.
@@ -615,7 +638,7 @@ describe('Vendors — /api/v1/vendors (e2e)', () => {
       );
 
       const fetched = await asAdmin(
-        request(app.getHttpServer()).get(`/api/v1/vendors/${vendor.body.data.public_id}`),
+        request(app.getHttpServer()).get(`/api/v1/vendors/${vendor.body.data.vendor_id}`),
       ).expect(200);
 
       const dates = fetched.body.data.subscriptions.map((s: any) => new Date(s.start_date).getTime());
@@ -633,14 +656,14 @@ describe('Vendors — /api/v1/vendors (e2e)', () => {
     it('rejects an unauthenticated request', async () => {
       const vendor = await onboardVendor();
       await request(app.getHttpServer())
-        .patch(`/api/v1/vendors/${vendor.body.data.public_id}`)
+        .patch(`/api/v1/vendors/${vendor.body.data.vendor_id}`)
         .send(toUpdatePayload(vendor.body.data))
         .expect(401);
     });
 
     it('rejects a non-SUPER_ADMIN caller', async () => {
       const vendor = await onboardVendor();
-      await asOwner(request(app.getHttpServer()).patch(`/api/v1/vendors/${vendor.body.data.public_id}`))
+      await asOwner(request(app.getHttpServer()).patch(`/api/v1/vendors/${vendor.body.data.vendor_id}`))
         .send(toUpdatePayload(vendor.body.data))
         .expect(403);
     });
@@ -654,7 +677,7 @@ describe('Vendors — /api/v1/vendors (e2e)', () => {
     it('updates a vendor and persists the change, returning no data on the write itself', async () => {
       const vendor = await onboardVendor();
 
-      const res = await asAdmin(request(app.getHttpServer()).patch(`/api/v1/vendors/${vendor.body.data.public_id}`))
+      const res = await asAdmin(request(app.getHttpServer()).patch(`/api/v1/vendors/${vendor.body.data.vendor_id}`))
         .send(toUpdatePayload(vendor.body.data, { city: 'Changed City' }))
         .expect(200);
 
@@ -662,7 +685,7 @@ describe('Vendors — /api/v1/vendors (e2e)', () => {
       expect(res.body.data).toBeUndefined();
 
       const single = await asAdmin(
-        request(app.getHttpServer()).get(`/api/v1/vendors/${vendor.body.data.public_id}`),
+        request(app.getHttpServer()).get(`/api/v1/vendors/${vendor.body.data.vendor_id}`),
       ).expect(200);
       expect(single.body.data.city).toBe('Changed City');
     });
@@ -671,7 +694,7 @@ describe('Vendors — /api/v1/vendors (e2e)', () => {
       const vendor = await onboardVendor();
       const { country: _omit, ...withoutCountry } = toUpdatePayload(vendor.body.data);
 
-      const res = await asAdmin(request(app.getHttpServer()).patch(`/api/v1/vendors/${vendor.body.data.public_id}`))
+      const res = await asAdmin(request(app.getHttpServer()).patch(`/api/v1/vendors/${vendor.body.data.vendor_id}`))
         .send(withoutCountry)
         .expect(400);
       expect(res.body.fields.country).toBeDefined();
@@ -681,7 +704,7 @@ describe('Vendors — /api/v1/vendors (e2e)', () => {
       const other = await onboardVendor();
       const target = await onboardVendor();
 
-      await asAdmin(request(app.getHttpServer()).patch(`/api/v1/vendors/${target.body.data.public_id}`))
+      await asAdmin(request(app.getHttpServer()).patch(`/api/v1/vendors/${target.body.data.vendor_id}`))
         .send(toUpdatePayload(target.body.data, { subdomain: other.body.data.subdomain }))
         .expect(409);
     });
@@ -691,7 +714,7 @@ describe('Vendors — /api/v1/vendors (e2e)', () => {
       const target = await onboardVendor();
 
       const res = await asAdmin(
-        request(app.getHttpServer()).patch(`/api/v1/vendors/${target.body.data.public_id}`),
+        request(app.getHttpServer()).patch(`/api/v1/vendors/${target.body.data.vendor_id}`),
       )
         .send(toUpdatePayload(target.body.data, { business_reg_no: other.body.data.business_reg_no }))
         .expect(409);
@@ -701,7 +724,7 @@ describe('Vendors — /api/v1/vendors (e2e)', () => {
     it('allows re-saving a vendor with its own unchanged subdomain/business_reg_no (not a false-positive duplicate)', async () => {
       const vendor = await onboardVendor();
 
-      await asAdmin(request(app.getHttpServer()).patch(`/api/v1/vendors/${vendor.body.data.public_id}`))
+      await asAdmin(request(app.getHttpServer()).patch(`/api/v1/vendors/${vendor.body.data.vendor_id}`))
         .send(toUpdatePayload(vendor.body.data))
         .expect(200);
     });
@@ -709,12 +732,12 @@ describe('Vendors — /api/v1/vendors (e2e)', () => {
     it('cannot change email or phone — those fields are no longer part of the update DTO', async () => {
       const vendor = await onboardVendor();
 
-      await asAdmin(request(app.getHttpServer()).patch(`/api/v1/vendors/${vendor.body.data.public_id}`))
+      await asAdmin(request(app.getHttpServer()).patch(`/api/v1/vendors/${vendor.body.data.vendor_id}`))
         .send({ ...toUpdatePayload(vendor.body.data), email: 'changed@example.com' })
         .expect(400); // forbidNonWhitelisted rejects the unknown field outright
 
       const single = await asAdmin(
-        request(app.getHttpServer()).get(`/api/v1/vendors/${vendor.body.data.public_id}`),
+        request(app.getHttpServer()).get(`/api/v1/vendors/${vendor.body.data.vendor_id}`),
       ).expect(200);
       expect(single.body.data.email).toBe(vendor.body.data.email);
     });
@@ -722,14 +745,14 @@ describe('Vendors — /api/v1/vendors (e2e)', () => {
     it('rejects onboarding-only fields (owner_email, onboarding_source, etc.) as unknown fields', async () => {
       const vendor = await onboardVendor();
 
-      await asAdmin(request(app.getHttpServer()).patch(`/api/v1/vendors/${vendor.body.data.public_id}`))
+      await asAdmin(request(app.getHttpServer()).patch(`/api/v1/vendors/${vendor.body.data.vendor_id}`))
         .send({ ...toUpdatePayload(vendor.body.data), onboarding_source: OnboardingSource.REFERRAL })
         .expect(400);
     });
 
     it('rejects missing required fields', async () => {
       const vendor = await onboardVendor();
-      const res = await asAdmin(request(app.getHttpServer()).patch(`/api/v1/vendors/${vendor.body.data.public_id}`))
+      const res = await asAdmin(request(app.getHttpServer()).patch(`/api/v1/vendors/${vendor.body.data.vendor_id}`))
         .send({})
         .expect(400);
 
@@ -744,9 +767,30 @@ describe('Vendors — /api/v1/vendors (e2e)', () => {
       expect(res.body.fields.business_type).toBeDefined();
     });
 
+    it('reports "should not be empty" as the first error for every missing required field', async () => {
+      const vendor = await onboardVendor();
+      const res = await asAdmin(request(app.getHttpServer()).patch(`/api/v1/vendors/${vendor.body.data.vendor_id}`))
+        .send({})
+        .expect(400);
+
+      for (const field of [
+        'name',
+        'subdomain',
+        'address',
+        'city',
+        'state',
+        'country',
+        'pincode',
+        'business_reg_no',
+        'business_type',
+      ]) {
+        expect(res.body.fields[field][0]).toBe(`${field} should not be empty`);
+      }
+    });
+
     it('rejects malformed fields (subdomain, pincode)', async () => {
       const vendor = await onboardVendor();
-      const res = await asAdmin(request(app.getHttpServer()).patch(`/api/v1/vendors/${vendor.body.data.public_id}`))
+      const res = await asAdmin(request(app.getHttpServer()).patch(`/api/v1/vendors/${vendor.body.data.vendor_id}`))
         .send(toUpdatePayload(vendor.body.data, { subdomain: 'Not Valid!', pincode: 'abc' }))
         .expect(400);
 
@@ -757,7 +801,7 @@ describe('Vendors — /api/v1/vendors (e2e)', () => {
     it('rejects a name shorter than 2, longer than 255, or non-string', async () => {
       const vendor = await onboardVendor();
       const patch = (overrides: Record<string, unknown>) =>
-        asAdmin(request(app.getHttpServer()).patch(`/api/v1/vendors/${vendor.body.data.public_id}`)).send(
+        asAdmin(request(app.getHttpServer()).patch(`/api/v1/vendors/${vendor.body.data.vendor_id}`)).send(
           toUpdatePayload(vendor.body.data, overrides),
         );
 
@@ -769,7 +813,7 @@ describe('Vendors — /api/v1/vendors (e2e)', () => {
     it('rejects a subdomain shorter than 2 or longer than 100 characters', async () => {
       const vendor = await onboardVendor();
       const patch = (overrides: Record<string, unknown>) =>
-        asAdmin(request(app.getHttpServer()).patch(`/api/v1/vendors/${vendor.body.data.public_id}`)).send(
+        asAdmin(request(app.getHttpServer()).patch(`/api/v1/vendors/${vendor.body.data.vendor_id}`)).send(
           toUpdatePayload(vendor.body.data, overrides),
         );
 
@@ -780,7 +824,7 @@ describe('Vendors — /api/v1/vendors (e2e)', () => {
     it('rejects an empty or overlong address', async () => {
       const vendor = await onboardVendor();
       const patch = (overrides: Record<string, unknown>) =>
-        asAdmin(request(app.getHttpServer()).patch(`/api/v1/vendors/${vendor.body.data.public_id}`)).send(
+        asAdmin(request(app.getHttpServer()).patch(`/api/v1/vendors/${vendor.body.data.vendor_id}`)).send(
           toUpdatePayload(vendor.body.data, overrides),
         );
 
@@ -791,7 +835,7 @@ describe('Vendors — /api/v1/vendors (e2e)', () => {
     it('rejects a city/state with digits/symbols or longer than 100 characters', async () => {
       const vendor = await onboardVendor();
       const patch = (overrides: Record<string, unknown>) =>
-        asAdmin(request(app.getHttpServer()).patch(`/api/v1/vendors/${vendor.body.data.public_id}`)).send(
+        asAdmin(request(app.getHttpServer()).patch(`/api/v1/vendors/${vendor.body.data.vendor_id}`)).send(
           toUpdatePayload(vendor.body.data, overrides),
         );
 
@@ -803,7 +847,7 @@ describe('Vendors — /api/v1/vendors (e2e)', () => {
     it('rejects an empty, overlong, or invalid country', async () => {
       const vendor = await onboardVendor();
       const patch = (overrides: Record<string, unknown>) =>
-        asAdmin(request(app.getHttpServer()).patch(`/api/v1/vendors/${vendor.body.data.public_id}`)).send(
+        asAdmin(request(app.getHttpServer()).patch(`/api/v1/vendors/${vendor.body.data.vendor_id}`)).send(
           toUpdatePayload(vendor.body.data, overrides),
         );
 
@@ -816,7 +860,7 @@ describe('Vendors — /api/v1/vendors (e2e)', () => {
     it('rejects a pincode shorter than 4 or longer than 10 digits', async () => {
       const vendor = await onboardVendor();
       const patch = (overrides: Record<string, unknown>) =>
-        asAdmin(request(app.getHttpServer()).patch(`/api/v1/vendors/${vendor.body.data.public_id}`)).send(
+        asAdmin(request(app.getHttpServer()).patch(`/api/v1/vendors/${vendor.body.data.vendor_id}`)).send(
           toUpdatePayload(vendor.body.data, overrides),
         );
 
@@ -827,7 +871,7 @@ describe('Vendors — /api/v1/vendors (e2e)', () => {
     it('rejects a business_reg_no shorter than 3, longer than 50, or with invalid characters', async () => {
       const vendor = await onboardVendor();
       const patch = (overrides: Record<string, unknown>) =>
-        asAdmin(request(app.getHttpServer()).patch(`/api/v1/vendors/${vendor.body.data.public_id}`)).send(
+        asAdmin(request(app.getHttpServer()).patch(`/api/v1/vendors/${vendor.body.data.vendor_id}`)).send(
           toUpdatePayload(vendor.body.data, overrides),
         );
 
@@ -839,7 +883,7 @@ describe('Vendors — /api/v1/vendors (e2e)', () => {
     it('rejects an empty or overlong business_type', async () => {
       const vendor = await onboardVendor();
       const patch = (overrides: Record<string, unknown>) =>
-        asAdmin(request(app.getHttpServer()).patch(`/api/v1/vendors/${vendor.body.data.public_id}`)).send(
+        asAdmin(request(app.getHttpServer()).patch(`/api/v1/vendors/${vendor.body.data.vendor_id}`)).send(
           toUpdatePayload(vendor.body.data, overrides),
         );
 
@@ -852,17 +896,17 @@ describe('Vendors — /api/v1/vendors (e2e)', () => {
     it('rejects an unauthenticated request', async () => {
       const vendor = await onboardVendor();
       await request(app.getHttpServer())
-        .patch(`/api/v1/vendors/${vendor.body.data.public_id}/activate`)
-        .send({ plan_public_id: starterPlanPublicId })
+        .patch(`/api/v1/vendors/${vendor.body.data.vendor_id}/activate`)
+        .send({ plan_id: starterPlanPublicId })
         .expect(401);
     });
 
     it('rejects a non-SUPER_ADMIN caller', async () => {
       const vendor = await onboardVendor();
       await asOwner(
-        request(app.getHttpServer()).patch(`/api/v1/vendors/${vendor.body.data.public_id}/activate`),
+        request(app.getHttpServer()).patch(`/api/v1/vendors/${vendor.body.data.vendor_id}/activate`),
       )
-        .send({ plan_public_id: starterPlanPublicId })
+        .send({ plan_id: starterPlanPublicId })
         .expect(403);
     });
 
@@ -870,36 +914,37 @@ describe('Vendors — /api/v1/vendors (e2e)', () => {
       return asAdmin(
         request(app.getHttpServer()).patch('/api/v1/vendors/00000000-0000-0000-0000-000000000000/activate'),
       )
-        .send({ plan_public_id: starterPlanPublicId })
+        .send({ plan_id: starterPlanPublicId })
         .expect(404);
     });
 
-    it('rejects a malformed (non-UUID) plan_public_id', async () => {
+    it('rejects a malformed (non-UUID) plan_id', async () => {
       const vendor = await onboardVendor();
       const res = await asAdmin(
-        request(app.getHttpServer()).patch(`/api/v1/vendors/${vendor.body.data.public_id}/activate`),
+        request(app.getHttpServer()).patch(`/api/v1/vendors/${vendor.body.data.vendor_id}/activate`),
       )
-        .send({ plan_public_id: 'not-a-uuid' })
+        .send({ plan_id: 'not-a-uuid' })
         .expect(400);
-      expect(res.body.fields.plan_public_id).toBeDefined();
+      expect(res.body.fields.plan_id).toBeDefined();
     });
 
-    it('rejects a missing plan_public_id', async () => {
+    it('rejects a missing plan_id, reporting "should not be empty" first (not "must be a UUID")', async () => {
       const vendor = await onboardVendor();
       const res = await asAdmin(
-        request(app.getHttpServer()).patch(`/api/v1/vendors/${vendor.body.data.public_id}/activate`),
+        request(app.getHttpServer()).patch(`/api/v1/vendors/${vendor.body.data.vendor_id}/activate`),
       )
         .send({})
         .expect(400);
-      expect(res.body.fields.plan_public_id).toBeDefined();
+      expect(res.body.fields.plan_id).toBeDefined();
+      expect(res.body.fields.plan_id[0]).toBe('plan_id should not be empty');
     });
 
     it('rejects an unknown field via forbidNonWhitelisted', async () => {
       const vendor = await onboardVendor();
       await asAdmin(
-        request(app.getHttpServer()).patch(`/api/v1/vendors/${vendor.body.data.public_id}/activate`),
+        request(app.getHttpServer()).patch(`/api/v1/vendors/${vendor.body.data.vendor_id}/activate`),
       )
-        .send({ plan_public_id: starterPlanPublicId, extra_field: 'nope' })
+        .send({ plan_id: starterPlanPublicId, extra_field: 'nope' })
         .expect(400);
     });
 
@@ -907,9 +952,9 @@ describe('Vendors — /api/v1/vendors (e2e)', () => {
       const vendor = await onboardVendor();
 
       await asAdmin(
-        request(app.getHttpServer()).patch(`/api/v1/vendors/${vendor.body.data.public_id}/activate`),
+        request(app.getHttpServer()).patch(`/api/v1/vendors/${vendor.body.data.vendor_id}/activate`),
       )
-        .send({ plan_public_id: '00000000-0000-0000-0000-000000000000' })
+        .send({ plan_id: '00000000-0000-0000-0000-000000000000' })
         .expect(404);
     });
 
@@ -926,15 +971,15 @@ describe('Vendors — /api/v1/vendors (e2e)', () => {
       const vendor = await onboardVendor();
 
       const res = await asAdmin(
-        request(app.getHttpServer()).patch(`/api/v1/vendors/${vendor.body.data.public_id}/activate`),
+        request(app.getHttpServer()).patch(`/api/v1/vendors/${vendor.body.data.vendor_id}/activate`),
       )
-        .send({ plan_public_id: inactivePlan.public_id })
+        .send({ plan_id: inactivePlan.public_id })
         .expect(400);
       expect(res.body.message).toMatch(/deactivated/i);
 
       // Vendor must remain untouched — no partial activation.
       const single = await asAdmin(
-        request(app.getHttpServer()).get(`/api/v1/vendors/${vendor.body.data.public_id}`),
+        request(app.getHttpServer()).get(`/api/v1/vendors/${vendor.body.data.vendor_id}`),
       ).expect(200);
       expect(single.body.data.status).toBe(VendorStatus.TRIAL);
     });
@@ -953,14 +998,14 @@ describe('Vendors — /api/v1/vendors (e2e)', () => {
       const vendor = await onboardVendor();
 
       const res = await asAdmin(
-        request(app.getHttpServer()).patch(`/api/v1/vendors/${vendor.body.data.public_id}/activate`),
+        request(app.getHttpServer()).patch(`/api/v1/vendors/${vendor.body.data.vendor_id}/activate`),
       )
-        .send({ plan_public_id: deletedPlan.public_id })
+        .send({ plan_id: deletedPlan.public_id })
         .expect(404);
       expect(res.body.message).toMatch(/not found/i);
 
       const single = await asAdmin(
-        request(app.getHttpServer()).get(`/api/v1/vendors/${vendor.body.data.public_id}`),
+        request(app.getHttpServer()).get(`/api/v1/vendors/${vendor.body.data.vendor_id}`),
       ).expect(200);
       expect(single.body.data.status).toBe(VendorStatus.TRIAL);
     });
@@ -968,9 +1013,9 @@ describe('Vendors — /api/v1/vendors (e2e)', () => {
     it('returns no data payload on activation, only a success message', async () => {
       const vendor = await onboardVendor();
       const res = await asAdmin(
-        request(app.getHttpServer()).patch(`/api/v1/vendors/${vendor.body.data.public_id}/activate`),
+        request(app.getHttpServer()).patch(`/api/v1/vendors/${vendor.body.data.vendor_id}/activate`),
       )
-        .send({ plan_public_id: starterPlanPublicId })
+        .send({ plan_id: starterPlanPublicId })
         .expect(200);
 
       expect(res.body).toEqual({ status: true, message: 'Vendor activated successfully' });
@@ -979,7 +1024,7 @@ describe('Vendors — /api/v1/vendors (e2e)', () => {
 
     it('activates a TRIAL vendor onto a paid plan', async () => {
       const vendor = await onboardVendor();
-      const fetched = await activateVendor(vendor.body.data.public_id, starterPlanPublicId);
+      const fetched = await activateVendor(vendor.body.data.vendor_id, starterPlanPublicId);
 
       const updated = fetched.body.data;
       expect(updated.status).toBe(VendorStatus.ACTIVE);
@@ -991,7 +1036,7 @@ describe('Vendors — /api/v1/vendors (e2e)', () => {
       const active = updated.subscriptions[0];
       expect(active.status).toBe(SubscriptionStatus.ACTIVE);
       expect(active.is_trial).toBe(false);
-      expect(active.plan.public_id).toBe(starterPlanPublicId);
+      expect(active.plan.plan_id).toBe(starterPlanPublicId);
 
       // starterPlanPublicId is a MONTHLY plan — expect a real expiry ~1 month out,
       // not the permanent (null end_date) subscription this used to create.
@@ -1017,7 +1062,7 @@ describe('Vendors — /api/v1/vendors (e2e)', () => {
       );
 
       const vendor = await onboardVendor();
-      const fetched = await activateVendor(vendor.body.data.public_id, annualPlan.public_id);
+      const fetched = await activateVendor(vendor.body.data.vendor_id, annualPlan.public_id);
 
       const active = fetched.body.data.subscriptions.find((s: any) => s.status === SubscriptionStatus.ACTIVE);
       expect(active.end_date).not.toBeNull();
@@ -1029,22 +1074,22 @@ describe('Vendors — /api/v1/vendors (e2e)', () => {
 
     it('re-activates an already-ACTIVE vendor onto a different plan', async () => {
       const vendor = await onboardVendor();
-      await activateVendor(vendor.body.data.public_id, starterPlanPublicId);
-      const fetched = await activateVendor(vendor.body.data.public_id, proPlanPublicId);
+      await activateVendor(vendor.body.data.vendor_id, starterPlanPublicId);
+      const fetched = await activateVendor(vendor.body.data.vendor_id, proPlanPublicId);
 
       const updated = fetched.body.data;
       expect(updated.status).toBe(VendorStatus.ACTIVE);
 
       const activeSubs = updated.subscriptions.filter((s: any) => s.status === SubscriptionStatus.ACTIVE);
       expect(activeSubs).toHaveLength(1);
-      expect(activeSubs[0].plan.public_id).toBe(proPlanPublicId);
+      expect(activeSubs[0].plan.plan_id).toBe(proPlanPublicId);
 
       // Three subscriptions (trial, starter, pro) all tie on start_date today
       // — the current/pro one must still come first via the created_at tiebreaker.
-      expect(updated.subscriptions[0].plan.public_id).toBe(proPlanPublicId);
+      expect(updated.subscriptions[0].plan.plan_id).toBe(proPlanPublicId);
       expect(updated.subscriptions[0].status).toBe(SubscriptionStatus.ACTIVE);
 
-      const starterSub = updated.subscriptions.find((s: any) => s.plan?.public_id === starterPlanPublicId);
+      const starterSub = updated.subscriptions.find((s: any) => s.plan?.plan_id === starterPlanPublicId);
       expect(starterSub.status).toBe(SubscriptionStatus.EXPIRED);
     });
 
@@ -1057,7 +1102,7 @@ describe('Vendors — /api/v1/vendors (e2e)', () => {
 
       expect(fetched.body.data.status).toBe(VendorStatus.ACTIVE);
       const active = fetched.body.data.subscriptions.find((s: any) => s.status === SubscriptionStatus.ACTIVE);
-      expect(active.plan.public_id).toBe(starterPlanPublicId);
+      expect(active.plan.plan_id).toBe(starterPlanPublicId);
     });
   });
 
@@ -1074,7 +1119,7 @@ describe('Vendors — /api/v1/vendors (e2e)', () => {
 
       expect(trialSub.is_trial).toBe(true);
       expect(trialSub.status).toBe(SubscriptionStatus.ACTIVE);
-      expect(trialSub.plan.public_id).toBe(baselineDefaultTrialPlan.public_id);
+      expect(trialSub.plan.plan_id).toBe(baselineDefaultTrialPlan.public_id);
     });
 
     it('switches new vendors over to a newly-promoted default trial plan', async () => {
@@ -1095,7 +1140,7 @@ describe('Vendors — /api/v1/vendors (e2e)', () => {
 
         const vendor = await onboardVendor();
         const trialSub = vendor.body.data.subscriptions.find((s: any) => s.is_trial);
-        expect(trialSub.plan.public_id).toBe(newDefault.public_id);
+        expect(trialSub.plan.plan_id).toBe(newDefault.public_id);
       } finally {
         await planRepo.update(newDefault.id_subscription_plan, { is_default_trial: false });
         await planRepo.update(baselineDefaultTrialPlan.id_subscription_plan, { is_default_trial: true });
@@ -1121,10 +1166,10 @@ describe('Vendors — /api/v1/vendors (e2e)', () => {
         await planRepo.update(newDefault.id_subscription_plan, { is_default_trial: true });
 
         const single = await asAdmin(
-          request(app.getHttpServer()).get(`/api/v1/vendors/${before.body.data.public_id}`),
+          request(app.getHttpServer()).get(`/api/v1/vendors/${before.body.data.vendor_id}`),
         ).expect(200);
         const trialSub = single.body.data.subscriptions.find((s: any) => s.is_trial);
-        expect(trialSub.plan.public_id).toBe(baselineDefaultTrialPlan.public_id);
+        expect(trialSub.plan.plan_id).toBe(baselineDefaultTrialPlan.public_id);
       } finally {
         await planRepo.update(newDefault.id_subscription_plan, { is_default_trial: false });
         await planRepo.update(baselineDefaultTrialPlan.id_subscription_plan, { is_default_trial: true });
@@ -1210,7 +1255,7 @@ describe('Vendors — /api/v1/vendors (e2e)', () => {
 
         // It's also visible via the list endpoint despite onboarding "failing".
         const list = await asAdmin(request(app.getHttpServer()).get('/api/v1/vendors')).expect(200);
-        expect(list.body.data.some((v: any) => v.public_id === vendorRow!.public_id)).toBe(true);
+        expect(list.body.data.some((v: any) => v.vendor_id === vendorRow!.public_id)).toBe(true);
       } finally {
         await planRepo.update(baselineDefaultTrialPlan.id_subscription_plan, { is_default_trial: true });
       }

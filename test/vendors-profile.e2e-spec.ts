@@ -170,7 +170,7 @@ describe('Vendors — /api/v1/vendors/:id shared read + /api/v1/vendors/me profi
       const res = await asAdmin(request(app.getHttpServer()).get(`/api/v1/vendors/${vendorA.public_id}`)).expect(
         200,
       );
-      expect(res.body.data.public_id).toBe(vendorA.public_id);
+      expect(res.body.data.vendor_id).toBe(vendorA.public_id);
     });
 
     it("lets a VENDOR_OWNER fetch their own vendor by id without leaking internal ids", async () => {
@@ -179,7 +179,7 @@ describe('Vendors — /api/v1/vendors/:id shared read + /api/v1/vendors/me profi
       );
 
       const vendor = res.body.data;
-      expect(vendor.public_id).toBe(vendorA.public_id);
+      expect(vendor.vendor_id).toBe(vendorA.public_id);
       expect(vendor.name).toBe(vendorA.name);
       expect(vendor.subdomain).toBe(vendorA.subdomain);
       expect(vendor.subscriptions).toEqual([]);
@@ -202,10 +202,10 @@ describe('Vendors — /api/v1/vendors/:id shared read + /api/v1/vendors/me profi
 
     it("lets a VENDOR_OWNER pass 'me' instead of their own public_id", async () => {
       const res = await asOwnerA(request(app.getHttpServer()).get('/api/v1/vendors/me')).expect(200);
-      expect(res.body.data.public_id).toBe(vendorA.public_id);
+      expect(res.body.data.vendor_id).toBe(vendorA.public_id);
 
       const ownerBRes = await asOwnerB(request(app.getHttpServer()).get('/api/v1/vendors/me')).expect(200);
-      expect(ownerBRes.body.data.public_id).toBe(vendorB.public_id);
+      expect(ownerBRes.body.data.vendor_id).toBe(vendorB.public_id);
     });
 
     it("404s a SUPER_ADMIN who passes 'me' — they have no vendor of their own", () => {
@@ -326,6 +326,16 @@ describe('Vendors — /api/v1/vendors/:id shared read + /api/v1/vendors/me profi
       expect(res.body.fields.business_type).toBeDefined();
     });
 
+    it('reports "should not be empty" as the first error for every missing required field — main.ts uses stopAtFirstError, so @IsNotEmpty must be declared before type/format decorators', async () => {
+      const res = await asOwnerA(request(app.getHttpServer()).patch('/api/v1/vendors/me'))
+        .send({})
+        .expect(400);
+
+      for (const field of ['name', 'address', 'city', 'state', 'country', 'pincode', 'business_reg_no', 'business_type']) {
+        expect(res.body.fields[field][0]).toBe(`${field} should not be empty`);
+      }
+    });
+
     it('rejects a business_reg_no shorter than 3, longer than 50, or with invalid characters', async () => {
       const patch = (overrides: Record<string, unknown>) =>
         asOwnerA(request(app.getHttpServer()).patch('/api/v1/vendors/me')).send(validProfilePayload(overrides));
@@ -342,6 +352,58 @@ describe('Vendors — /api/v1/vendors/:id shared read + /api/v1/vendors/me profi
 
       expect(res.body.fields.pincode).toBeDefined();
       expect(res.body.fields.city).toBeDefined();
+    });
+
+    it('rejects a name shorter than 2, longer than 255, or non-string', async () => {
+      const patch = (overrides: Record<string, unknown>) =>
+        asOwnerA(request(app.getHttpServer()).patch('/api/v1/vendors/me')).send(validProfilePayload(overrides));
+
+      await patch({ name: 'X' }).expect(400);
+      await patch({ name: 'A'.repeat(256) }).expect(400);
+      await patch({ name: 12345 }).expect(400);
+    });
+
+    it('rejects an empty or overlong address', async () => {
+      const patch = (overrides: Record<string, unknown>) =>
+        asOwnerA(request(app.getHttpServer()).patch('/api/v1/vendors/me')).send(validProfilePayload(overrides));
+
+      await patch({ address: '' }).expect(400);
+      await patch({ address: 'A'.repeat(501) }).expect(400);
+    });
+
+    it('rejects a city/state with digits/symbols or longer than 100 characters', async () => {
+      const patch = (overrides: Record<string, unknown>) =>
+        asOwnerA(request(app.getHttpServer()).patch('/api/v1/vendors/me')).send(validProfilePayload(overrides));
+
+      await patch({ city: 'A'.repeat(101) }).expect(400);
+      await patch({ state: 'Kerala!' }).expect(400);
+      await patch({ state: 'A'.repeat(101) }).expect(400);
+    });
+
+    it('rejects an empty, overlong, or invalid country', async () => {
+      const patch = (overrides: Record<string, unknown>) =>
+        asOwnerA(request(app.getHttpServer()).patch('/api/v1/vendors/me')).send(validProfilePayload(overrides));
+
+      await patch({ country: '' }).expect(400);
+      await patch({ country: 'A'.repeat(101) }).expect(400);
+      const res = await patch({ country: 'India123' }).expect(400);
+      expect(res.body.fields.country).toBeDefined();
+    });
+
+    it('rejects a pincode shorter than 4 or longer than 10 digits', async () => {
+      const patch = (overrides: Record<string, unknown>) =>
+        asOwnerA(request(app.getHttpServer()).patch('/api/v1/vendors/me')).send(validProfilePayload(overrides));
+
+      await patch({ pincode: '123' }).expect(400);
+      await patch({ pincode: '12345678901' }).expect(400);
+    });
+
+    it('rejects an empty or overlong business_type', async () => {
+      const patch = (overrides: Record<string, unknown>) =>
+        asOwnerA(request(app.getHttpServer()).patch('/api/v1/vendors/me')).send(validProfilePayload(overrides));
+
+      await patch({ business_type: '' }).expect(400);
+      await patch({ business_type: 'A'.repeat(256) }).expect(400);
     });
   });
 });

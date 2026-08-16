@@ -14,10 +14,16 @@ export const PASSWORD_RULE_DESCRIPTION = `Minimum ${PASSWORD_MIN_LENGTH} charact
 // Single source of truth for every "set a new password" field (signup,
 // staff/admin creation, change-password) so the rule can never drift between
 // DTOs. Does not apply to LoginDto, which validates an existing password.
+//
+// Order matters here: main.ts's ValidationPipe uses `stopAtFirstError: true`,
+// so only the first failing constraint's message is returned per field.
+// IsNotEmpty goes first so a missing/blank password reports "should not be
+// empty" (matching every other required field in this codebase) rather than
+// the less useful "must be a string".
 export function IsStrongPassword() {
   return applyDecorators(
-    IsString(),
     IsNotEmpty(),
+    IsString(),
     MinLength(PASSWORD_MIN_LENGTH, { message: `password must be at least ${PASSWORD_MIN_LENGTH} characters` }),
     Matches(PASSWORD_COMPLEXITY_REGEX, { message: PASSWORD_COMPLEXITY_MESSAGE }),
   );

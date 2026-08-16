@@ -33,14 +33,16 @@ export class VendorsService {
     return vendors.map((v) => {
       const activeSub = v.subscriptions?.find((s) => s.status === SubscriptionStatus.ACTIVE) ?? null;
       return {
-        public_id: v.public_id,
+        vendor_id: v.public_id,
         name: v.name,
         subdomain: v.subdomain,
         email: v.email,
         phone: v.phone,
         status: v.status,
         onboarding_source: v.onboarding_source,
-        onboarded_by: v.onboarded_by ? { name: v.onboarded_by.name } : null,
+        onboarded_by: v.onboarded_by
+          ? { user_id: v.onboarded_by.public_id, name: v.onboarded_by.name }
+          : null,
         referred_by: v.referred_by ? { name: v.referred_by.name } : null,
         created_at: v.created_at,
         subscription: activeSub
@@ -64,7 +66,7 @@ export class VendorsService {
 
   private mapVendorDetail(vendor: Vendor) {
     return {
-      public_id: vendor.public_id,
+      vendor_id: vendor.public_id,
       name: vendor.name,
       subdomain: vendor.subdomain,
       email: vendor.email,
@@ -78,7 +80,9 @@ export class VendorsService {
       business_type: vendor.business_type,
       status: vendor.status,
       onboarding_source: vendor.onboarding_source,
-      onboarded_by: vendor.onboarded_by ? { name: vendor.onboarded_by.name } : null,
+      onboarded_by: vendor.onboarded_by
+        ? { user_id: vendor.onboarded_by.public_id, name: vendor.onboarded_by.name }
+        : null,
       referred_by: vendor.referred_by ? { name: vendor.referred_by.name } : null,
       created_at: vendor.created_at,
       updated_at: vendor.updated_at,
@@ -92,7 +96,7 @@ export class VendorsService {
         end_date: s.end_date,
         plan: s.plan
           ? {
-              public_id: s.plan.public_id,
+              plan_id: s.plan.public_id,
               name: s.plan.name,
               plan_type: s.plan.plan_type,
               billing_cycle: s.plan.billing_cycle,
@@ -160,32 +164,32 @@ export class VendorsService {
     }
   }
 
-  private validateReferralSource(source: OnboardingSource, referredByVendorPublicId?: string) {
-    if (source === OnboardingSource.REFERRAL && !referredByVendorPublicId) {
+  private validateReferralSource(source: OnboardingSource, referredByVendorId?: string) {
+    if (source === OnboardingSource.REFERRAL && !referredByVendorId) {
       throw new BadRequestException(
-        'referred_by_vendor_public_id is required when onboarding_source is REFERRAL',
+        'referred_by_vendor_id is required when onboarding_source is REFERRAL',
       );
     }
-    if (source !== OnboardingSource.REFERRAL && referredByVendorPublicId) {
+    if (source !== OnboardingSource.REFERRAL && referredByVendorId) {
       throw new BadRequestException(
-        'referred_by_vendor_public_id can only be set when onboarding_source is REFERRAL',
+        'referred_by_vendor_id can only be set when onboarding_source is REFERRAL',
       );
     }
   }
 
   // An unresolvable referral is not fatal — fall back to no referrer rather
   // than rejecting the whole request over a stale/bad referral link.
-  private async resolveReferrerId(referredByVendorPublicId?: string): Promise<number | null> {
-    if (!referredByVendorPublicId) return null;
-    const referrer = await this.vendorRepo.findOneBy({ public_id: referredByVendorPublicId });
+  private async resolveReferrerId(referredByVendorId?: string): Promise<number | null> {
+    if (!referredByVendorId) return null;
+    const referrer = await this.vendorRepo.findOneBy({ public_id: referredByVendorId });
     return referrer?.id_vendor ?? null;
   }
 
   async create(dto: CreateVendorDto, onboardedByUserId: number) {
     const source = dto.onboarding_source ?? OnboardingSource.SUPER_ADMIN;
-    this.validateReferralSource(source, dto.referred_by_vendor_public_id);
+    this.validateReferralSource(source, dto.referred_by_vendor_id);
 
-    const referredByVendorId = await this.resolveReferrerId(dto.referred_by_vendor_public_id);
+    const referredByVendorId = await this.resolveReferrerId(dto.referred_by_vendor_id);
 
     const existingOwner = await this.userRepo.findOneBy({ email: dto.owner_email });
     if (existingOwner) throw new ConflictException('A user with this owner_email already exists');

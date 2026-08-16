@@ -132,9 +132,9 @@ export class CreateVendorDto {
 
   @ApiPropertyOptional({
     example: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
-    description: 'public_id of the referring vendor — only valid when onboarding_source is REFERRAL',
+    description: 'id of the referring vendor — only valid when onboarding_source is REFERRAL',
   })
   @IsUUID()
   @IsOptional()
-  referred_by_vendor_public_id?: string;
+  referred_by_vendor_id?: string;
 }

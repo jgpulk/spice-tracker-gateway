@@ -22,6 +22,7 @@ export class User {
   @Column({ type: 'varchar', length: 36, unique: true })
   public_id: string;
 
+  @Exclude()
   @Column({ type: 'int', nullable: true })
   vendor_id: number | null;
 

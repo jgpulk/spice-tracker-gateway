@@ -181,6 +181,18 @@ describe('Users — PATCH /api/v1/users/me/password (e2e)', () => {
     expect(res.body.fields.new_password).toBeDefined();
   });
 
+  it('reports "should not be empty" as the first error for current_password and new_password — main.ts uses stopAtFirstError, so @IsNotEmpty must be declared before type/format decorators', async () => {
+    const token = await login(OWNER_EMAIL, OWNER_PASSWORD);
+
+    const res = await request(app.getHttpServer())
+      .patch('/api/v1/users/me/password')
+      .set('Authorization', `Bearer ${token}`)
+      .send({})
+      .expect(400);
+    expect(res.body.fields.current_password[0]).toBe('current_password should not be empty');
+    expect(res.body.fields.new_password[0]).toBe('new_password should not be empty');
+  });
+
   it('changes a VENDOR_OWNER password and the old password stops working', async () => {
     const token = await login(OWNER_EMAIL, OWNER_PASSWORD);
     const newPassword = 'BrandNewSecret456!';
