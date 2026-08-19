@@ -118,7 +118,7 @@ describe('Auth — /api/v1/auth/login (e2e)', () => {
       expect(user.name).toBe('E2E Login Admin');
       // The user's internal numeric PK must never appear in a response.
       expect(user.id_user).toBeUndefined();
-      expect(typeof user.id).toBe('string'); // public_id, not the internal id_user
+      expect(typeof user.user_id).toBe('string'); // public_id, not the internal id_user
 
       await request(app.getHttpServer())
         .get('/api/v1/vendors')
@@ -134,7 +134,7 @@ describe('Auth — /api/v1/auth/login (e2e)', () => {
       expect(user.vendor_id).toBe(vendor.public_id); // exposed as public_id, not the raw PK
 
       const staff = await request(app.getHttpServer())
-        .get('/api/v1/users')
+        .get('/api/v1/staff')
         .set('Authorization', `Bearer ${access_token}`)
         .expect(200);
       expect(staff.body.data.some((u: any) => u.email === OWNER_EMAIL)).toBe(true);
@@ -160,7 +160,7 @@ describe('Auth — /api/v1/auth/login (e2e)', () => {
         .set('Authorization', `Bearer ${access_token}`)
         .expect(403);
       await request(app.getHttpServer())
-        .get('/api/v1/users')
+        .get('/api/v1/staff')
         .set('Authorization', `Bearer ${access_token}`)
         .expect(403);
     });
@@ -215,6 +215,12 @@ describe('Auth — /api/v1/auth/login (e2e)', () => {
       const res = await login({}).expect(400);
       expect(res.body.fields.email).toBeDefined();
       expect(res.body.fields.password).toBeDefined();
+    });
+
+    it('reports "should not be empty" as the first error for email/password — main.ts uses stopAtFirstError, so @IsNotEmpty must be declared before type/format decorators', async () => {
+      const res = await login({}).expect(400);
+      expect(res.body.fields.email[0]).toBe('email should not be empty');
+      expect(res.body.fields.password[0]).toBe('password should not be empty');
     });
 
     it('rejects an invalid email format', async () => {

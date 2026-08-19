@@ -22,8 +22,20 @@ export class UsersService {
     return this.userRepo.findOne({ where: { email }, relations: ['vendor'] });
   }
 
-  findAllByVendor(vendor_id: number) {
-    return this.userRepo.findBy({ vendor_id });
+  async findAllByVendor(vendor_id: number) {
+    const users = await this.userRepo.find({ where: { vendor_id }, relations: ['vendor'] });
+    // vendor_id here is the vendor's public_id (a UUID), not the raw numeric
+    // FK — same convention AuthService.login uses for its `user.vendor_id`.
+    return users.map((u) => ({
+      user_id: u.public_id,
+      vendor_id: u.vendor?.public_id ?? null,
+      name: u.name,
+      email: u.email,
+      role: u.role,
+      is_active: u.is_active,
+      created_at: u.created_at,
+      updated_at: u.updated_at,
+    }));
   }
 
   async findOne(id: number, vendor_id?: number) {
@@ -33,8 +45,18 @@ export class UsersService {
     return user;
   }
 
-  create(data: Partial<User>) {
-    const user = this.userRepo.create(data);
+  async createStaff(name: string, email: string, password: string, vendorId: number) {
+    const existing = await this.userRepo.findOneBy({ email });
+    if (existing) throw new ConflictException('Email already in use');
+
+    const user = this.userRepo.create({
+      name,
+      email,
+      password_hash: await bcrypt.hash(password, 10),
+      role: Role.WAREHOUSE_STAFF,
+      vendor_id: vendorId,
+      is_active: true,
+    });
     return this.userRepo.save(user);
   }
 

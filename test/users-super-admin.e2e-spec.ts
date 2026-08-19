@@ -148,6 +148,13 @@ describe('Super admin creation — POST /api/v1/users/super-admin (e2e)', () => 
       expect(res.body.fields.password).toBeDefined();
     });
 
+    it('reports "should not be empty" as the first error for name/email/password — main.ts uses stopAtFirstError, so @IsNotEmpty must be declared before type/format decorators', async () => {
+      const res = await createSuperAdminAs(superAdminToken, {}).expect(400);
+      expect(res.body.fields.name[0]).toBe('name should not be empty');
+      expect(res.body.fields.email[0]).toBe('email should not be empty');
+      expect(res.body.fields.password[0]).toBe('password should not be empty');
+    });
+
     it('rejects a name shorter than 2 characters', async () => {
       const res = await createSuperAdminAs(superAdminToken, validPayload({ name: 'A' })).expect(400);
       expect(res.body.fields.name).toBeDefined();

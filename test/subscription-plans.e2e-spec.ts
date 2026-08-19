@@ -167,7 +167,7 @@ describe('Subscription Plans — /api/v1/subscription-plans (e2e)', () => {
 
       const plan = fetched.body.data;
       expect(plan.id_subscription_plan).toBeUndefined(); // internal PK must never leak
-      expect(plan.public_id).toBeDefined();
+      expect(plan.plan_id).toBeDefined();
       expect(plan.is_active).toBe(true); // defaults to true when omitted
       expect(plan.is_default_trial).toBe(false); // always false on create — see below
     });
@@ -199,6 +199,17 @@ describe('Subscription Plans — /api/v1/subscription-plans (e2e)', () => {
       expect(res.body.fields.plan_type).toBeDefined();
       expect(res.body.fields.billing_cycle).toBeDefined();
       expect(res.body.fields.monthly_fee).toBeDefined();
+    });
+
+    it('reports "should not be empty" as the first error for every missing required field — main.ts uses stopAtFirstError, so @IsNotEmpty must be declared before type/format decorators', async () => {
+      const res = await asAdmin(request(app.getHttpServer()).post('/api/v1/subscription-plans'))
+        .send({})
+        .expect(400);
+
+      expect(res.body.fields.name[0]).toBe('name should not be empty');
+      expect(res.body.fields.plan_type[0]).toBe('plan_type should not be empty');
+      expect(res.body.fields.billing_cycle[0]).toBe('billing_cycle should not be empty');
+      expect(res.body.fields.monthly_fee[0]).toBe('monthly_fee should not be empty');
     });
 
     it('rejects an empty string name', async () => {
@@ -312,11 +323,11 @@ describe('Subscription Plans — /api/v1/subscription-plans (e2e)', () => {
       const plan = await onboardPlan({ description: 'A described plan' });
 
       const res = await asAdmin(request(app.getHttpServer()).get('/api/v1/subscription-plans')).expect(200);
-      const item = res.body.data.find((p: any) => p.public_id === plan.body.data.public_id);
+      const item = res.body.data.find((p: any) => p.plan_id === plan.body.data.plan_id);
 
       expect(item).toBeDefined();
       expect(Object.keys(item).sort()).toEqual(
-        ['billing_cycle', 'description', 'is_active', 'is_default_trial', 'monthly_fee', 'name', 'plan_type', 'public_id'].sort(),
+        ['billing_cycle', 'description', 'is_active', 'is_default_trial', 'monthly_fee', 'name', 'plan_id', 'plan_type'].sort(),
       );
       expect(item.id_subscription_plan).toBeUndefined();
       expect(item.created_at).toBeUndefined();
@@ -336,12 +347,12 @@ describe('Subscription Plans — /api/v1/subscription-plans (e2e)', () => {
       );
 
       const res = await asAdmin(request(app.getHttpServer()).get('/api/v1/subscription-plans')).expect(200);
-      const ids = res.body.data.map((p: any) => p.public_id);
+      const ids = res.body.data.map((p: any) => p.plan_id);
 
-      expect(ids).toContain(active.body.data.public_id);
+      expect(ids).toContain(active.body.data.plan_id);
       expect(ids).toContain(inactive.public_id);
 
-      const item = res.body.data.find((p: any) => p.public_id === inactive.public_id);
+      const item = res.body.data.find((p: any) => p.plan_id === inactive.public_id);
       expect(item.is_active).toBe(false);
     });
 
@@ -358,9 +369,9 @@ describe('Subscription Plans — /api/v1/subscription-plans (e2e)', () => {
       );
 
       const res = await asAdmin(request(app.getHttpServer()).get('/api/v1/subscription-plans')).expect(200);
-      const ids = res.body.data.map((p: any) => p.public_id);
+      const ids = res.body.data.map((p: any) => p.plan_id);
 
-      expect(ids).toContain(kept.body.data.public_id);
+      expect(ids).toContain(kept.body.data.plan_id);
       expect(ids).not.toContain(deleted.public_id);
     });
 
@@ -376,12 +387,12 @@ describe('Subscription Plans — /api/v1/subscription-plans (e2e)', () => {
 
       const res = await asAdmin(request(app.getHttpServer()).get('/api/v1/subscription-plans')).expect(200);
       const ids = [
-        starterCheap.body.data.public_id,
-        starterExpensive.body.data.public_id,
-        pro.body.data.public_id,
-        enterprise.body.data.public_id,
+        starterCheap.body.data.plan_id,
+        starterExpensive.body.data.plan_id,
+        pro.body.data.plan_id,
+        enterprise.body.data.plan_id,
       ];
-      const relevantOrder = res.body.data.map((p: any) => p.public_id).filter((id: string) => ids.includes(id));
+      const relevantOrder = res.body.data.map((p: any) => p.plan_id).filter((id: string) => ids.includes(id));
 
       expect(relevantOrder).toEqual(ids);
     });
@@ -391,14 +402,14 @@ describe('Subscription Plans — /api/v1/subscription-plans (e2e)', () => {
     it('rejects an unauthenticated request', async () => {
       const plan = await onboardPlan();
       await request(app.getHttpServer())
-        .get(`/api/v1/subscription-plans/${plan.body.data.public_id}`)
+        .get(`/api/v1/subscription-plans/${plan.body.data.plan_id}`)
         .expect(401);
     });
 
     it('rejects a non-SUPER_ADMIN caller', async () => {
       const plan = await onboardPlan();
       await asOwner(
-        request(app.getHttpServer()).get(`/api/v1/subscription-plans/${plan.body.data.public_id}`),
+        request(app.getHttpServer()).get(`/api/v1/subscription-plans/${plan.body.data.plan_id}`),
       ).expect(403);
     });
 
@@ -438,7 +449,7 @@ describe('Subscription Plans — /api/v1/subscription-plans (e2e)', () => {
       const plan = await onboardPlan({ description: 'A described plan' });
 
       expect(Object.keys(plan.body.data).sort()).toEqual(
-        ['billing_cycle', 'description', 'is_active', 'is_default_trial', 'monthly_fee', 'name', 'plan_type', 'public_id'].sort(),
+        ['billing_cycle', 'description', 'is_active', 'is_default_trial', 'monthly_fee', 'name', 'plan_id', 'plan_type'].sort(),
       );
       expect(plan.body.data.id_subscription_plan).toBeUndefined();
       expect(plan.body.data.created_at).toBeUndefined();
@@ -514,7 +525,7 @@ describe('Subscription Plans — /api/v1/subscription-plans (e2e)', () => {
     it('rejects an unauthenticated request', async () => {
       const plan = await onboardPlan();
       await request(app.getHttpServer())
-        .patch(`/api/v1/subscription-plans/${plan.body.data.public_id}`)
+        .patch(`/api/v1/subscription-plans/${plan.body.data.plan_id}`)
         .send(toUpdatePayload(plan.body.data))
         .expect(401);
     });
@@ -522,7 +533,7 @@ describe('Subscription Plans — /api/v1/subscription-plans (e2e)', () => {
     it('rejects a non-SUPER_ADMIN caller', async () => {
       const plan = await onboardPlan();
       await asOwner(
-        request(app.getHttpServer()).patch(`/api/v1/subscription-plans/${plan.body.data.public_id}`),
+        request(app.getHttpServer()).patch(`/api/v1/subscription-plans/${plan.body.data.plan_id}`),
       )
         .send(toUpdatePayload(plan.body.data))
         .expect(403);
@@ -539,7 +550,7 @@ describe('Subscription Plans — /api/v1/subscription-plans (e2e)', () => {
     it('returns no data payload on update, only a success message', async () => {
       const plan = await onboardPlan();
       const res = await asAdmin(
-        request(app.getHttpServer()).patch(`/api/v1/subscription-plans/${plan.body.data.public_id}`),
+        request(app.getHttpServer()).patch(`/api/v1/subscription-plans/${plan.body.data.plan_id}`),
       )
         .send(toUpdatePayload(plan.body.data, { name: 'Renamed Plan' }))
         .expect(200);
@@ -552,7 +563,7 @@ describe('Subscription Plans — /api/v1/subscription-plans (e2e)', () => {
       const plan = await onboardPlan();
 
       const fetched = await patchPlan(
-        plan.body.data.public_id,
+        plan.body.data.plan_id,
         toUpdatePayload(plan.body.data, { name: 'Updated Name' }),
       );
       expect(fetched.body.data.name).toBe('Updated Name');
@@ -561,7 +572,7 @@ describe('Subscription Plans — /api/v1/subscription-plans (e2e)', () => {
     it('rejects missing required fields on update', async () => {
       const plan = await onboardPlan();
       const res = await asAdmin(
-        request(app.getHttpServer()).patch(`/api/v1/subscription-plans/${plan.body.data.public_id}`),
+        request(app.getHttpServer()).patch(`/api/v1/subscription-plans/${plan.body.data.plan_id}`),
       )
         .send({})
         .expect(400);
@@ -571,10 +582,23 @@ describe('Subscription Plans — /api/v1/subscription-plans (e2e)', () => {
       expect(res.body.fields.is_active).toBeDefined();
     });
 
+    it('reports "should not be empty" as the first error for every missing required field on update', async () => {
+      const plan = await onboardPlan();
+      const res = await asAdmin(
+        request(app.getHttpServer()).patch(`/api/v1/subscription-plans/${plan.body.data.plan_id}`),
+      )
+        .send({})
+        .expect(400);
+
+      expect(res.body.fields.name[0]).toBe('name should not be empty');
+      expect(res.body.fields.plan_type[0]).toBe('plan_type should not be empty');
+      expect(res.body.fields.is_active[0]).toBe('is_active should not be empty');
+    });
+
     it('rejects an invalid plan_type enum value on update', async () => {
       const plan = await onboardPlan();
       const res = await asAdmin(
-        request(app.getHttpServer()).patch(`/api/v1/subscription-plans/${plan.body.data.public_id}`),
+        request(app.getHttpServer()).patch(`/api/v1/subscription-plans/${plan.body.data.plan_id}`),
       )
         .send(toUpdatePayload(plan.body.data, { plan_type: 'NOT_A_TYPE' }))
         .expect(400);
@@ -584,7 +608,7 @@ describe('Subscription Plans — /api/v1/subscription-plans (e2e)', () => {
     it('rejects a name shorter than 2 characters on update', async () => {
       const plan = await onboardPlan();
       const res = await asAdmin(
-        request(app.getHttpServer()).patch(`/api/v1/subscription-plans/${plan.body.data.public_id}`),
+        request(app.getHttpServer()).patch(`/api/v1/subscription-plans/${plan.body.data.plan_id}`),
       )
         .send(toUpdatePayload(plan.body.data, { name: 'X' }))
         .expect(400);
@@ -594,7 +618,7 @@ describe('Subscription Plans — /api/v1/subscription-plans (e2e)', () => {
     it('rejects a non-boolean is_active value on update', async () => {
       const plan = await onboardPlan();
       const res = await asAdmin(
-        request(app.getHttpServer()).patch(`/api/v1/subscription-plans/${plan.body.data.public_id}`),
+        request(app.getHttpServer()).patch(`/api/v1/subscription-plans/${plan.body.data.plan_id}`),
       )
         .send(toUpdatePayload(plan.body.data, { is_active: 'yes' }))
         .expect(400);
@@ -603,7 +627,7 @@ describe('Subscription Plans — /api/v1/subscription-plans (e2e)', () => {
 
     it('rejects billing_cycle/monthly_fee as unknown fields on update — price and cycle are not editable after creation', async () => {
       const plan = await onboardPlan();
-      await asAdmin(request(app.getHttpServer()).patch(`/api/v1/subscription-plans/${plan.body.data.public_id}`))
+      await asAdmin(request(app.getHttpServer()).patch(`/api/v1/subscription-plans/${plan.body.data.plan_id}`))
         .send({
           ...toUpdatePayload(plan.body.data),
           billing_cycle: BillingCycle.ANNUAL,
@@ -614,7 +638,7 @@ describe('Subscription Plans — /api/v1/subscription-plans (e2e)', () => {
 
     it('rejects unknown fields on update', async () => {
       const plan = await onboardPlan();
-      await asAdmin(request(app.getHttpServer()).patch(`/api/v1/subscription-plans/${plan.body.data.public_id}`))
+      await asAdmin(request(app.getHttpServer()).patch(`/api/v1/subscription-plans/${plan.body.data.plan_id}`))
         .send({ ...toUpdatePayload(plan.body.data), not_a_real_field: 'x' })
         .expect(400);
     });
@@ -623,19 +647,19 @@ describe('Subscription Plans — /api/v1/subscription-plans (e2e)', () => {
       const plan = await onboardPlan();
 
       const fetched = await patchPlan(
-        plan.body.data.public_id,
+        plan.body.data.plan_id,
         toUpdatePayload(plan.body.data, { is_active: false }),
       );
       expect(fetched.body.data.is_active).toBe(false);
 
       const list = await asAdmin(request(app.getHttpServer()).get('/api/v1/subscription-plans')).expect(200);
-      const item = list.body.data.find((p: any) => p.public_id === plan.body.data.public_id);
+      const item = list.body.data.find((p: any) => p.plan_id === plan.body.data.plan_id);
       expect(item.is_active).toBe(false);
     });
 
     it('rejects is_default_trial as an unknown field on update — same as create, it has no API-facing setter', async () => {
       const plan = await onboardPlan();
-      await asAdmin(request(app.getHttpServer()).patch(`/api/v1/subscription-plans/${plan.body.data.public_id}`))
+      await asAdmin(request(app.getHttpServer()).patch(`/api/v1/subscription-plans/${plan.body.data.plan_id}`))
         .send({ ...toUpdatePayload(plan.body.data), is_default_trial: true })
         .expect(400);
     });
@@ -667,14 +691,14 @@ describe('Subscription Plans — /api/v1/subscription-plans (e2e)', () => {
     it('rejects an unauthenticated request', async () => {
       const plan = await onboardPlan();
       await request(app.getHttpServer())
-        .delete(`/api/v1/subscription-plans/${plan.body.data.public_id}`)
+        .delete(`/api/v1/subscription-plans/${plan.body.data.plan_id}`)
         .expect(401);
     });
 
     it('rejects a non-SUPER_ADMIN caller', async () => {
       const plan = await onboardPlan();
       await asOwner(
-        request(app.getHttpServer()).delete(`/api/v1/subscription-plans/${plan.body.data.public_id}`),
+        request(app.getHttpServer()).delete(`/api/v1/subscription-plans/${plan.body.data.plan_id}`),
       ).expect(403);
     });
 
@@ -687,7 +711,7 @@ describe('Subscription Plans — /api/v1/subscription-plans (e2e)', () => {
     it('returns no data payload on delete, only a success message', async () => {
       const plan = await onboardPlan();
       const res = await asAdmin(
-        request(app.getHttpServer()).delete(`/api/v1/subscription-plans/${plan.body.data.public_id}`),
+        request(app.getHttpServer()).delete(`/api/v1/subscription-plans/${plan.body.data.plan_id}`),
       ).expect(200);
 
       expect(res.body).toEqual({ status: true, message: 'Subscription plan deleted successfully' });
@@ -698,10 +722,10 @@ describe('Subscription Plans — /api/v1/subscription-plans (e2e)', () => {
       const plan = await onboardPlan({ is_active: true });
 
       await asAdmin(
-        request(app.getHttpServer()).delete(`/api/v1/subscription-plans/${plan.body.data.public_id}`),
+        request(app.getHttpServer()).delete(`/api/v1/subscription-plans/${plan.body.data.plan_id}`),
       ).expect(200);
 
-      const row = await planRepo.findOneBy({ public_id: plan.body.data.public_id });
+      const row = await planRepo.findOneBy({ public_id: plan.body.data.plan_id });
       expect(row!.is_deleted).toBe(true);
       expect(row!.is_active).toBe(false);
     });
@@ -709,36 +733,36 @@ describe('Subscription Plans — /api/v1/subscription-plans (e2e)', () => {
     it('hides the deleted plan from both GET /:id and the list afterward', async () => {
       const plan = await onboardPlan();
       await asAdmin(
-        request(app.getHttpServer()).delete(`/api/v1/subscription-plans/${plan.body.data.public_id}`),
+        request(app.getHttpServer()).delete(`/api/v1/subscription-plans/${plan.body.data.plan_id}`),
       ).expect(200);
 
       await asAdmin(
-        request(app.getHttpServer()).get(`/api/v1/subscription-plans/${plan.body.data.public_id}`),
+        request(app.getHttpServer()).get(`/api/v1/subscription-plans/${plan.body.data.plan_id}`),
       ).expect(404);
 
       const list = await asAdmin(request(app.getHttpServer()).get('/api/v1/subscription-plans')).expect(200);
-      expect(list.body.data.some((p: any) => p.public_id === plan.body.data.public_id)).toBe(false);
+      expect(list.body.data.some((p: any) => p.plan_id === plan.body.data.plan_id)).toBe(false);
     });
 
     it('404s when deleting an already-deleted plan — not idempotent-200', async () => {
       const plan = await onboardPlan();
       await asAdmin(
-        request(app.getHttpServer()).delete(`/api/v1/subscription-plans/${plan.body.data.public_id}`),
+        request(app.getHttpServer()).delete(`/api/v1/subscription-plans/${plan.body.data.plan_id}`),
       ).expect(200);
 
       await asAdmin(
-        request(app.getHttpServer()).delete(`/api/v1/subscription-plans/${plan.body.data.public_id}`),
+        request(app.getHttpServer()).delete(`/api/v1/subscription-plans/${plan.body.data.plan_id}`),
       ).expect(404);
     });
 
     it('a deleted plan can no longer be updated afterward', async () => {
       const plan = await onboardPlan();
       await asAdmin(
-        request(app.getHttpServer()).delete(`/api/v1/subscription-plans/${plan.body.data.public_id}`),
+        request(app.getHttpServer()).delete(`/api/v1/subscription-plans/${plan.body.data.plan_id}`),
       ).expect(200);
 
       const res = await asAdmin(
-        request(app.getHttpServer()).patch(`/api/v1/subscription-plans/${plan.body.data.public_id}`),
+        request(app.getHttpServer()).patch(`/api/v1/subscription-plans/${plan.body.data.plan_id}`),
       )
         .send(toUpdatePayload(plan.body.data))
         .expect(400);

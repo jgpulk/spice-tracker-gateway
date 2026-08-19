@@ -1,7 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { IsEmail, IsEnum, IsNotEmpty, IsString, MaxLength, MinLength } from 'class-validator';
-import { Role } from '../../../common/enums/role.enum';
+import { IsEmail, IsNotEmpty, IsString, MaxLength, MinLength } from 'class-validator';
+import { trim, trimLower } from '../../../common/transforms/string.transform';
 import { IsStrongPassword, PASSWORD_MIN_LENGTH, PASSWORD_RULE_DESCRIPTION } from '../../../common/validators/password.validator';
 
 export class CreateUserDto {
@@ -10,13 +10,13 @@ export class CreateUserDto {
   @MaxLength(255)
   @MinLength(2)
   @IsNotEmpty()
-  @Transform(({ value }) => value?.trim())
+  @Transform(trim)
   name: string;
 
   @ApiProperty({ example: 'staff@shop.com' })
   @IsEmail()
   @IsNotEmpty()
-  @Transform(({ value }) => value?.trim().toLowerCase())
+  @Transform(trimLower)
   email: string;
 
   @ApiProperty({
@@ -26,8 +26,4 @@ export class CreateUserDto {
   })
   @IsStrongPassword()
   password: string;
-
-  @ApiProperty({ enum: Role, example: Role.WAREHOUSE_STAFF })
-  @IsEnum(Role)
-  role: Role;
 }

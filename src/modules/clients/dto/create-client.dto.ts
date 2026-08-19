@@ -11,45 +11,48 @@ import {
   MaxLength,
   MinLength,
 } from 'class-validator';
+import { trim, trimLower } from '../../../common/transforms/string.transform';
 import { ClientType } from '../../../common/enums/client-type.enum';
 
 export class CreateClientDto {
   @ApiProperty({ example: 'Spice Traders Ltd' })
   @IsString()
-  @IsNotEmpty()
   @MinLength(2)
   @MaxLength(255)
-  @Transform(({ value }) => value?.trim())
+  @IsNotEmpty()
+  @Transform(trim)
   name: string;
 
   @ApiProperty({ example: '+919876543210', description: 'Valid phone number with optional + country code' })
   @Matches(/^\+?[0-9]{7,15}$/, {
     message: 'phone must contain only digits with an optional leading + (e.g. +919876543210)',
   })
+  @IsNotEmpty()
   phone: string;
 
   @ApiPropertyOptional({ example: 'trader@example.com' })
   @IsOptional()
   @IsEmail()
-  @Transform(({ value }) => value?.trim().toLowerCase())
+  @Transform(trimLower)
   email?: string;
 
   @ApiPropertyOptional({ example: 'Spice Traders Ltd' })
   @IsOptional()
   @IsString()
   @MaxLength(255)
-  @Transform(({ value }) => value?.trim())
+  @Transform(trim)
   company_name?: string;
 
   @ApiPropertyOptional({ example: 'Cochin, Kerala' })
   @IsOptional()
   @IsString()
   @MaxLength(500)
-  @Transform(({ value }) => value?.trim())
+  @Transform(trim)
   address?: string;
 
   @ApiProperty({ enum: ClientType, default: ClientType.INDIVIDUAL })
   @IsEnum(ClientType)
+  @IsNotEmpty()
   type: ClientType;
 
   @ApiPropertyOptional({

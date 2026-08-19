@@ -22,6 +22,7 @@ export async function createTestApp(): Promise<{ app: INestApplication; moduleFi
       whitelist: true,
       forbidNonWhitelisted: true,
       transform: true,
+      stopAtFirstError: true,
       exceptionFactory: (errors) => {
         const fields: Record<string, string[]> = {};
         for (const error of errors) {

@@ -14,6 +14,7 @@ import { GradedStockModule } from './modules/graded-stock/graded-stock.module';
 import { SalesModule } from './modules/sales/sales.module';
 import { FarmerPayoutsModule } from './modules/farmer-payouts/farmer-payouts.module';
 import { SubscriptionPlansModule } from './modules/subscription-plans/subscription-plans.module';
+import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { CronModule } from './modules/cron/cron.module';
 
 import { Vendor } from './modules/vendors/entities/vendor.entity';
@@ -65,6 +66,7 @@ import { FarmerPayout } from './modules/farmer-payouts/entities/farmer-payout.en
     SalesModule,
     FarmerPayoutsModule,
     SubscriptionPlansModule,
+    DashboardModule,
     CronModule,
   ],
 })

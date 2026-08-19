@@ -23,7 +23,8 @@ export class VendorsController {
   @Get()
   @ResponseMessage('Vendors fetched successfully')
   @ApiOperation({
-    summary: '✅ Verified — List all vendor shops with subscription history (Super Admin only)',
+    summary:
+      '✅ Verified — List all vendor shops with subscription history (Super Admin only)',
   })
   findAll() {
     return this.vendorsService.findAll();
@@ -75,6 +76,6 @@ export class VendorsController {
       '✅ Verified — Activate a vendor onto a paid plan (works for TRIAL → ACTIVE and SUSPENDED → ACTIVE). Super Admin only.',
   })
   async activate(@Param('id') id: string, @Body() body: ActivateVendorDto) {
-    await this.vendorsService.activateVendor(id, body.plan_public_id);
+    await this.vendorsService.activateVendor(id, body.plan_id);
   }
 }

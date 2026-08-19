@@ -2,6 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
   IsDate,
+  IsNotEmpty,
   IsNumber,
   IsOptional,
   IsPositive,
@@ -14,6 +15,7 @@ export class CreateFarmerPayoutDto {
     description: 'public_id of the farmer',
   })
   @IsUUID()
+  @IsNotEmpty()
   farmer_public_id!: string;
 
   @ApiProperty({
@@ -21,11 +23,13 @@ export class CreateFarmerPayoutDto {
     description: 'public_id of the stock batch',
   })
   @IsUUID()
+  @IsNotEmpty()
   batch_public_id!: string;
 
   @ApiProperty({ example: 102250.0, description: 'Amount to pay the farmer' })
   @IsNumber()
   @IsPositive()
+  @IsNotEmpty()
   amount!: number;
 
   @ApiPropertyOptional({ example: '2024-12-31' })

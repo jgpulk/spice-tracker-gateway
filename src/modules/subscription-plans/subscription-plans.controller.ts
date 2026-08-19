@@ -27,7 +27,7 @@ export class SubscriptionPlansController {
   @Roles(Role.SUPER_ADMIN)
   @Get(':id')
   @ResponseMessage('Subscription plan fetched successfully')
-  @ApiOperation({ summary: '✅ Verified — Get a subscription plan by public ID (Super Admin only)' })
+  @ApiOperation({ summary: '✅ Verified — Get a subscription plan by id (Super Admin only)' })
   findOne(@Param('id') id: string) {
     return this.plansService.findOne(id);
   }
